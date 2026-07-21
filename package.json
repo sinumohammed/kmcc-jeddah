@@ -1,0 +1,22 @@
+{
+  "name": "kmcc",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev:api": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "concurrently -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "build:web": "npm --prefix web run build",
+    "prisma:generate": "npm --prefix server run prisma:generate",
+    "prisma:migrate": "npm --prefix server run prisma:migrate",
+    "seed": "npm --prefix server run seed",
+    "seed:members": "npm --prefix server run seed:members"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "prisma": "^6.19.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}

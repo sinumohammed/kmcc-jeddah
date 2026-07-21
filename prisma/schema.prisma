@@ -1,0 +1,147 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../server/node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum ContributionStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum LoanStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum TxnFlow {
+  INCOME
+  EXPENSE
+}
+
+enum TxnCategory {
+  SAVING_DEPOSIT
+  INTEREST
+  PROFIT
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  EXPENSE
+  ZAKAT
+}
+
+model Member {
+  id             String   @id @default(cuid())
+  memberCode     String   @unique
+  name           String
+  mobile         String
+  address        String?
+  passwordHash   String
+  role           Role     @default(MEMBER)
+  isSavingMember Boolean  @default(false)
+  isLoanMember   Boolean  @default(false)
+  joinDate       DateTime @default(now())
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  monthlyAmounts MonthlyAmountHistory[]
+  contributions  MonthlyContribution[]
+  loans          Loan[]
+  transactions   Transaction[]
+
+  @@index([mobile])
+}
+
+model MonthlyAmountHistory {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  year     Int
+  amount   Decimal @db.Decimal(12, 2)
+
+  @@unique([memberId, year])
+}
+
+model MonthlyContribution {
+  id         String             @id @default(cuid())
+  memberId   String
+  member     Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int
+  amountDue  Decimal            @db.Decimal(12, 2)
+  amountPaid Decimal            @default(0) @db.Decimal(12, 2)
+  status     ContributionStatus @default(PENDING)
+  paidDate   DateTime?
+
+  @@unique([memberId, year, month])
+}
+
+model Bank {
+  id                    String    @id @default(cuid())
+  name                  String
+  accountHolderName     String?
+  accountNumber         String?
+  branchName            String?
+  branchSolId           String?
+  customerId            String?
+  accountOpenDate       DateTime?
+  modeOfOperation       String?
+  jointHolders          String?
+  ifscCode              String?
+  micrCode              String?
+  swiftCode             String?
+  currency              String    @default("INR")
+  nominationRegistered  Boolean?
+  openingBalance        Decimal   @default(0) @db.Decimal(14, 2)
+  active                Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+
+  transactions Transaction[]
+}
+
+model Loan {
+  id             String     @id @default(cuid())
+  memberId       String
+  member         Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  principalAmount Decimal   @db.Decimal(12, 2)
+  disbursedDate  DateTime
+  status         LoanStatus @default(ACTIVE)
+  balance        Decimal    @db.Decimal(12, 2)
+  createdAt      DateTime   @default(now())
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id             String      @id @default(cuid())
+  memberId       String?
+  member         Member?     @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  bankId         String
+  bank           Bank        @relation(fields: [bankId], references: [id])
+  date           DateTime
+  description    String
+  flow           TxnFlow
+  category       TxnCategory
+  amount         Decimal     @db.Decimal(12, 2)
+  linkedLoanId   String?
+  linkedLoan     Loan?       @relation(fields: [linkedLoanId], references: [id])
+  profitBatchId  String?
+  createdBy      String
+  createdAt      DateTime    @default(now())
+
+  @@index([memberId])
+  @@index([bankId])
+  @@index([category])
+  @@index([profitBatchId])
+}
