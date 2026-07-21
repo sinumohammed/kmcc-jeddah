@@ -27,6 +27,7 @@ export function AppLayout() {
         { key: '/members', icon: <TeamOutlined />, label: 'Members' },
         { key: '/banks', icon: <BankOutlined />, label: 'Banks' },
         { key: '/transactions', icon: <SwapOutlined />, label: 'Transactions' },
+        { key: '/profile', icon: <UserOutlined />, label: 'Member Profile' },
       ]
     : [{ key: '/profile', icon: <UserOutlined />, label: 'My Profile' }];
 

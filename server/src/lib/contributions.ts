@@ -48,6 +48,9 @@ export async function ensureContributionsUpTo(
 /**
  * Applies a deposit amount to a saving member's oldest pending/partial
  * months first, so a single lump-sum payment can clear multiple back-months.
+ * Only allocates within the deposit's own calendar year — each year's dues
+ * are a separate obligation, so a payment dated in 2025 must never fill
+ * 2026's months (and vice versa).
  */
 export async function allocateDepositToContributions(
   memberId: string,
@@ -55,10 +58,11 @@ export async function allocateDepositToContributions(
   paidDate: Date
 ) {
   let remaining = new Decimal(amount);
+  const year = paidDate.getFullYear();
 
   const pending = await prisma.monthlyContribution.findMany({
-    where: { memberId, status: { in: ['PENDING', 'PARTIAL'] } },
-    orderBy: [{ year: 'asc' }, { month: 'asc' }],
+    where: { memberId, year, status: { in: ['PENDING', 'PARTIAL'] } },
+    orderBy: [{ month: 'asc' }],
   });
 
   for (const row of pending) {
@@ -78,5 +82,29 @@ export async function allocateDepositToContributions(
     });
 
     remaining = remaining.minus(applied);
+  }
+}
+
+/**
+ * Recomputes a saving member's entire paid/pending contribution history from
+ * scratch: resets all months to unpaid, then replays every remaining
+ * SAVING_DEPOSIT transaction (oldest first) through the same allocation
+ * logic used when a deposit is created. Call this after a saving-deposit
+ * transaction is deleted or edited so the contribution schedule stays in
+ * sync with the actual transaction ledger.
+ */
+export async function recalculateAllContributions(memberId: string) {
+  await prisma.monthlyContribution.updateMany({
+    where: { memberId },
+    data: { amountPaid: 0, status: 'PENDING', paidDate: null },
+  });
+
+  const deposits = await prisma.transaction.findMany({
+    where: { memberId, category: 'SAVING_DEPOSIT' },
+    orderBy: { date: 'asc' },
+  });
+
+  for (const txn of deposits) {
+    await allocateDepositToContributions(memberId, txn.amount, txn.date);
   }
 }

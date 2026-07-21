@@ -93,6 +93,7 @@ async function main() {
         role: 'MEMBER',
         isSavingMember: true,
         isLoanMember: false,
+        joinDate: new Date(new Date().getFullYear(), 0, 1),
       },
     });
     created++;

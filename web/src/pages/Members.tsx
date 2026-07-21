@@ -20,6 +20,7 @@ export function Members() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
   const [form] = Form.useForm();
   const memberType = Form.useWatch('memberType', form);
@@ -70,21 +71,26 @@ export function Members() {
     };
     if (password) payload.password = password;
 
-    if (editing) {
-      await api.put(`/members/${editing.id}`, payload);
-      if (type === 'saving' && monthlyAmount) {
-        await api.post(`/members/${editing.id}/monthly-amount`, {
-          year: dayjs().year(),
-          amount: monthlyAmount,
-        });
+    setSaving(true);
+    try {
+      if (editing) {
+        await api.put(`/members/${editing.id}`, payload);
+        if (type === 'saving' && monthlyAmount) {
+          await api.post(`/members/${editing.id}/monthly-amount`, {
+            year: dayjs().year(),
+            amount: monthlyAmount,
+          });
+        }
+        message.success('Member updated');
+      } else {
+        await api.post('/members', { ...payload, monthlyAmount });
+        message.success('Member added');
       }
-      message.success('Member updated');
-    } else {
-      await api.post('/members', { ...payload, monthlyAmount });
-      message.success('Member added');
+      setOpen(false);
+      load();
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
-    load();
   };
 
   const onDelete = async (id: string) => {
@@ -141,6 +147,7 @@ export function Members() {
         open={open}
         onCancel={() => setOpen(false)}
         onOk={form.submit}
+        confirmLoading={saving}
         destroyOnClose
       >
         <Form

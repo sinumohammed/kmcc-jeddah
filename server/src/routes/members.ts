@@ -99,11 +99,12 @@ router.post('/', requireAdmin, async (req, res) => {
 
 router.put('/:id', requireAdmin, async (req, res) => {
   const id = req.params.id as string;
-  const { name, mobile, address, isSavingMember, isLoanMember, password } = req.body ?? {};
+  const { name, mobile, address, isSavingMember, isLoanMember, joinDate, password } = req.body ?? {};
   if (isSavingMember && isLoanMember) {
     return res.status(400).json({ error: 'A member can only be a saving member or a loan member, not both' });
   }
   const data: any = { name, mobile, address, isSavingMember, isLoanMember };
+  if (joinDate) data.joinDate = new Date(joinDate);
   if (password) data.passwordHash = await hashPassword(password);
 
   const member = await prisma.member.update({ where: { id }, data });
@@ -126,6 +127,14 @@ router.post('/:id/monthly-amount', requireAdmin, async (req, res) => {
     update: { amount },
     create: { memberId, year, amount },
   });
+
+  // Months not yet paid should reflect the new amount; months already
+  // paid/partially paid keep their historical due amount.
+  await prisma.monthlyContribution.updateMany({
+    where: { memberId, year, status: 'PENDING' },
+    data: { amountDue: amount },
+  });
+
   res.status(204).send();
 });
 

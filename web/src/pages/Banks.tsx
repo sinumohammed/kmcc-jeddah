@@ -21,6 +21,7 @@ export function Banks() {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Bank | null>(null);
   const [form] = Form.useForm();
 
@@ -56,15 +57,20 @@ export function Banks() {
       ...values,
       accountOpenDate: values.accountOpenDate?.toISOString(),
     };
-    if (editing) {
-      await api.put(`/banks/${editing.id}`, payload);
-      message.success('Bank updated');
-    } else {
-      await api.post('/banks', payload);
-      message.success('Bank added');
+    setSaving(true);
+    try {
+      if (editing) {
+        await api.put(`/banks/${editing.id}`, payload);
+        message.success('Bank updated');
+      } else {
+        await api.post('/banks', payload);
+        message.success('Bank added');
+      }
+      setOpen(false);
+      load();
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
-    load();
   };
 
   const onDelete = async (id: string) => {
@@ -132,6 +138,7 @@ export function Banks() {
         open={open}
         onCancel={() => setOpen(false)}
         onOk={form.submit}
+        confirmLoading={saving}
         destroyOnClose
         width={640}
       >

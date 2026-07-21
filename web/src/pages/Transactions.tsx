@@ -54,8 +54,10 @@ export function Transactions() {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [memberLoans, setMemberLoans] = useState<Loan[]>([]);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [profitOpen, setProfitOpen] = useState(false);
+  const [distributing, setDistributing] = useState(false);
   const [form] = Form.useForm();
   const [profitForm] = Form.useForm();
 
@@ -111,15 +113,20 @@ export function Transactions() {
   };
 
   const onSubmit = async (values: any) => {
-    if (editing) {
-      await api.put(`/transactions/${editing.id}`, { ...values, date: values.date.toISOString() });
-      message.success('Transaction updated');
-    } else {
-      await api.post('/transactions', { ...values, date: values.date.toISOString() });
-      message.success('Transaction added');
+    setSaving(true);
+    try {
+      if (editing) {
+        await api.put(`/transactions/${editing.id}`, { ...values, date: values.date.toISOString() });
+        message.success('Transaction updated');
+      } else {
+        await api.post('/transactions', { ...values, date: values.date.toISOString() });
+        message.success('Transaction added');
+      }
+      setOpen(false);
+      load();
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
-    load();
   };
 
   const onDelete = async (id: string) => {
@@ -129,14 +136,19 @@ export function Transactions() {
   };
 
   const onDistributeProfit = async (values: any) => {
-    const { data } = await api.post('/transactions/profit-distribution', {
-      ...values,
-      date: values.date.toISOString(),
-    });
-    message.success(`Profit distributed to ${data.count} members`);
-    setProfitOpen(false);
-    profitForm.resetFields();
-    load();
+    setDistributing(true);
+    try {
+      const { data } = await api.post('/transactions/profit-distribution', {
+        ...values,
+        date: values.date.toISOString(),
+      });
+      message.success(`Profit distributed to ${data.count} members`);
+      setProfitOpen(false);
+      profitForm.resetFields();
+      load();
+    } finally {
+      setDistributing(false);
+    }
   };
 
   const clearBankFilter = () => setSearchParams({});
@@ -208,6 +220,7 @@ export function Transactions() {
         open={open}
         onCancel={() => setOpen(false)}
         onOk={form.submit}
+        confirmLoading={saving}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={{ date: dayjs() }}>
@@ -259,6 +272,7 @@ export function Transactions() {
         open={profitOpen}
         onCancel={() => setProfitOpen(false)}
         onOk={profitForm.submit}
+        confirmLoading={distributing}
         destroyOnClose
       >
         <Form form={profitForm} layout="vertical" onFinish={onDistributeProfit} initialValues={{ date: dayjs() }}>

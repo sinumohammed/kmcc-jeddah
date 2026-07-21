@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireAuth, requireAdmin } from '../middleware/auth';
-import { ensureContributionsUpTo, allocateDepositToContributions } from '../lib/contributions';
+import {
+  ensureContributionsUpTo,
+  allocateDepositToContributions,
+  recalculateAllContributions,
+} from '../lib/contributions';
 import { Decimal } from '.prisma/client/runtime/library';
 
 const router = Router();
@@ -83,9 +87,13 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id as string;
   const { date, description, amount, bankId, category, flow } = req.body ?? {};
+
+  const before = await prisma.transaction.findUniqueOrThrow({ where: { id } });
+
   const txn = await prisma.transaction.update({
-    where: { id: req.params.id as string },
+    where: { id },
     data: {
       date: date ? new Date(date) : undefined,
       description,
@@ -95,11 +103,25 @@ router.put('/:id', requireAdmin, async (req, res) => {
       flow,
     },
   });
+
+  const affectedMemberIds = new Set<string>();
+  if (before.category === 'SAVING_DEPOSIT' && before.memberId) affectedMemberIds.add(before.memberId);
+  if (txn.category === 'SAVING_DEPOSIT' && txn.memberId) affectedMemberIds.add(txn.memberId);
+  for (const memberId of affectedMemberIds) {
+    await recalculateAllContributions(memberId);
+  }
+
   res.json(txn);
 });
 
 router.delete('/:id', requireAdmin, async (req, res) => {
-  await prisma.transaction.delete({ where: { id: req.params.id as string } });
+  const id = req.params.id as string;
+  const txn = await prisma.transaction.delete({ where: { id } });
+
+  if (txn.category === 'SAVING_DEPOSIT' && txn.memberId) {
+    await recalculateAllContributions(txn.memberId);
+  }
+
   res.status(204).send();
 });
 
