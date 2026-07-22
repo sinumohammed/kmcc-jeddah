@@ -110,12 +110,11 @@ export function Members() {
         rowKey="id"
         loading={loading}
         dataSource={members}
-        scroll={{ x: 860 }}
+        scroll={{ x: 660 }}
         columns={[
           { title: 'Member ID', dataIndex: 'memberCode', width: 110 },
-          { title: 'Name', dataIndex: 'name', width: 140, ellipsis: true },
+          { title: 'Name', dataIndex: 'name', width: 160, ellipsis: true },
           { title: 'Mobile', dataIndex: 'mobile', width: 120 },
-          { title: 'Address', dataIndex: 'address', width: 200, ellipsis: true },
           {
             title: 'Type',
             width: 90,
