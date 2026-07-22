@@ -12,9 +12,9 @@ const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-const RING_SEGMENTS = 6;
+const RING_SEGMENTS = 12;
 
-function buildSegmentedRing(filled: number, total: number, filledColor: string, emptyColor: string, gapDeg = 6) {
+function buildSegmentedRing(filled: number, total: number, filledColor: string, emptyColor: string, gapDeg = 3) {
   const segAngle = 360 / total;
   const stops: string[] = [];
   for (let i = 0; i < total; i++) {
@@ -104,7 +104,8 @@ export function Profile() {
   const monthlyScheme = target.monthlyAmounts?.find((m) => m.year === currentYear)?.amount;
   const paidMonths = contributions.filter((c) => c.status === 'PAID').length;
   const paidPercent = Math.round((paidMonths / 12) * 100);
-  const filledSegments = Math.round((paidMonths / 12) * RING_SEGMENTS);
+  const filledSegments = Math.min(paidMonths, RING_SEGMENTS);
+  const showRing = target.isSavingMember && contributions.length > 0;
 
   const onDownloadPdf = async () => {
     setPdfGenerating(true);
@@ -157,13 +158,43 @@ export function Profile() {
             </Space>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
+            {showRing && (
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: buildSegmentedRing(filledSegments, RING_SEGMENTS, '#1677ff', token.colorFillSecondary),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 0 6px auto',
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '50%',
+                    background: token.colorBgContainer,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Typography.Text strong style={{ fontSize: 12 }}>
+                    {paidPercent}%
+                  </Typography.Text>
+                </div>
+              </div>
+            )}
             <Statistic title={balanceLabel} value={displayBalance} prefix="₹" precision={2} />
             <Button
               size="small"
               icon={<DownloadOutlined />}
               loading={pdfGenerating}
               title="Download Statement"
-              style={{ marginTop: 4 }}
+              style={{ marginTop: 4, padding: '0 6px', fontSize: 12 }}
               onClick={onDownloadPdf}
             />
           </div>
@@ -201,39 +232,9 @@ export function Profile() {
             />
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div
-                  style={{
-                    width: 100,
-                    height: 100,
-                    borderRadius: '50%',
-                    background: buildSegmentedRing(filledSegments, RING_SEGMENTS, '#1677ff', token.colorFillSecondary),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 68,
-                      height: 68,
-                      borderRadius: '50%',
-                      background: token.colorBgContainer,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography.Text strong style={{ fontSize: 18 }}>
-                      {paidPercent}%
-                    </Typography.Text>
-                  </div>
-                </div>
-                <Typography.Text type="secondary">
-                  {paidMonths} of 12 months' contributions paid for {currentYear}
-                </Typography.Text>
-              </div>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                {paidMonths} of 12 months' contributions paid for {currentYear}
+              </Typography.Text>
               <Table
                 rowKey="id"
                 pagination={false}
