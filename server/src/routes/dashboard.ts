@@ -55,6 +55,16 @@ router.get('/summary', async (_req, res) => {
   });
 });
 
+router.get('/members-summary', async (_req, res) => {
+  const [savingMembers, loanMembers, totalMembers] = await Promise.all([
+    prisma.member.count({ where: { active: true, role: 'MEMBER', isSavingMember: true } }),
+    prisma.member.count({ where: { active: true, role: 'MEMBER', isLoanMember: true } }),
+    prisma.member.count({ where: { active: true, role: 'MEMBER' } }),
+  ]);
+
+  res.json({ totalMembers, savingMembers, loanMembers });
+});
+
 router.get('/banks-summary', async (_req, res) => {
   const banks = await prisma.bank.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
 

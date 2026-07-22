@@ -14,11 +14,17 @@ import {
 } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
 import type { Member } from '../types';
 
+const TYPE_LABELS: Record<string, string> = { saving: 'Saving Members', loan: 'Loan Members' };
+
 export function Members() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const typeFilter = searchParams.get('type') ?? undefined;
+
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -30,14 +36,16 @@ export function Members() {
   const load = () => {
     setLoading(true);
     return api
-      .get('/members')
+      .get('/members', { params: typeFilter ? { type: typeFilter } : {} })
       .then(({ data }) => setMembers(data))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [typeFilter]);
+
+  const clearTypeFilter = () => setSearchParams({});
 
   const openAdd = () => {
     setEditing(null);
@@ -103,9 +111,16 @@ export function Members() {
 
   return (
     <>
-      <Button type="primary" style={{ marginBottom: 16 }} onClick={openAdd}>
-        Add Member
-      </Button>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Button type="primary" onClick={openAdd}>
+          Add Member
+        </Button>
+        {typeFilter && (
+          <Tag closable onClose={clearTypeFilter} color="blue">
+            Filtered by: {TYPE_LABELS[typeFilter] ?? typeFilter}
+          </Tag>
+        )}
+      </Space>
       <Table
         rowKey="id"
         loading={loading}

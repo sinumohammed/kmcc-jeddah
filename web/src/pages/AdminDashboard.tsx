@@ -1,9 +1,10 @@
 import { Card, Col, Grid, List, Modal, Row, Statistic, Typography, theme } from 'antd';
+import { TeamOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Loader } from '../components/Loader';
-import type { BankSummary, DashboardSummary } from '../types';
+import type { BankSummary, DashboardSummary, MembersSummary } from '../types';
 
 const TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
   { key: 'totalSavingsAmount', label: 'Total Savings Amount', color: '#0f3460' },
@@ -36,16 +37,18 @@ export function AdminDashboard() {
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [bankSummaries, setBankSummaries] = useState<BankSummary[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
+  const [membersSummary, setMembersSummary] = useState<MembersSummary | null>(null);
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.sm;
 
   useEffect(() => {
-    api
-      .get('/dashboard/summary')
-      .then(({ data }) => setSummary(data))
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get('/dashboard/summary').then(({ data }) => setSummary(data)),
+      api.get('/dashboard/members-summary').then(({ data }) => setMembersSummary(data)),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const onBankBalanceClick = () => {
@@ -62,6 +65,15 @@ export function AdminDashboard() {
     navigate(`/transactions?bankId=${bankId}`);
   };
 
+  const onMembersClick = () => {
+    setMembersModalOpen(true);
+  };
+
+  const goToMembers = (type: 'saving' | 'loan') => {
+    setMembersModalOpen(false);
+    navigate(`/members?type=${type}`);
+  };
+
   const positiveTotal = bankSummaries.reduce((sum, b) => sum + Math.max(0, Number(b.balance)), 0);
   const donutShares = bankSummaries.map((b, i) => ({
     ...b,
@@ -69,11 +81,27 @@ export function AdminDashboard() {
     value: positiveTotal > 0 ? (Math.max(0, Number(b.balance)) / positiveTotal) * 100 : 0,
   }));
 
+  const memberCountsBase = (membersSummary?.savingMembers ?? 0) + (membersSummary?.loanMembers ?? 0);
+  const memberDonutShares = [
+    { type: 'saving' as const, label: 'Saving Members', count: membersSummary?.savingMembers ?? 0, color: '#0f3460' },
+    { type: 'loan' as const, label: 'Loan Members', count: membersSummary?.loanMembers ?? 0, color: '#c0392b' },
+  ].map((s) => ({ ...s, value: memberCountsBase > 0 ? (s.count / memberCountsBase) * 100 : 0 }));
+
   if (loading) return <Loader />;
 
   return (
     <>
       <Row gutter={[16, 16]}>
+        <Col xs={12} sm={12} md={8} lg={6}>
+          <Card size={isMobile ? 'small' : 'default'} hoverable onClick={onMembersClick}>
+            <Statistic
+              title={isMobile ? <span style={{ fontSize: 12 }}>Total Members</span> : 'Total Members'}
+              value={membersSummary?.totalMembers ?? 0}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#0f3460', fontSize: isMobile ? 18 : undefined }}
+            />
+          </Card>
+        </Col>
         {TILES.map((tile) => (
           <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
             <Card
@@ -161,6 +189,65 @@ export function AdminDashboard() {
             />
           </>
         )}
+      </Modal>
+
+      <Modal
+        title="Member Breakdown"
+        open={membersModalOpen}
+        onCancel={() => setMembersModalOpen(false)}
+        footer={null}
+      >
+        <div
+          style={{
+            width: 200,
+            height: 200,
+            borderRadius: '50%',
+            margin: '16px auto',
+            background: buildDonutGradient(memberDonutShares),
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 30,
+              borderRadius: '50%',
+              background: token.colorBgContainer,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+            }}
+          >
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Total
+            </Typography.Text>
+            <Typography.Text strong>{membersSummary?.totalMembers ?? 0}</Typography.Text>
+          </div>
+        </div>
+        <List
+          dataSource={memberDonutShares}
+          renderItem={(item) => (
+            <List.Item onClick={() => goToMembers(item.type)} style={{ cursor: 'pointer' }}>
+              <List.Item.Meta
+                avatar={
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      background: item.color,
+                      marginTop: 4,
+                    }}
+                  />
+                }
+                title={item.label}
+              />
+              <Typography.Text strong>{item.count}</Typography.Text>
+            </List.Item>
+          )}
+        />
       </Modal>
     </>
   );

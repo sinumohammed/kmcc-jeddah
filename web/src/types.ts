@@ -98,3 +98,9 @@ export interface DashboardSummary {
   totalExpense: string;
   totalZakat: string;
 }
+
+export interface MembersSummary {
+  totalMembers: number;
+  savingMembers: number;
+  loanMembers: number;
+}
