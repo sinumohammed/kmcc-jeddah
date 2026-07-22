@@ -22,28 +22,8 @@ import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
 import { downloadCsv, parseCsv, toCsv } from '../utils/csv';
-import type { Bank, Loan, Member, Transaction, TxnFlow } from '../types';
-
-const FLOW_OPTIONS = [
-  { label: 'Deposit', value: 'INCOME' },
-  { label: 'Withdrawal', value: 'EXPENSE' },
-];
-
-const CATEGORY_OPTIONS: Record<TxnFlow, { label: string; value: string }[]> = {
-  INCOME: [
-    { label: 'Saving', value: 'SAVING_DEPOSIT' },
-    { label: 'Interest', value: 'INTEREST' },
-    { label: 'Loan', value: 'LOAN_REPAYMENT' },
-    { label: 'Zakat', value: 'ZAKAT' },
-  ],
-  EXPENSE: [
-    { label: 'Loan', value: 'LOAN_DISBURSEMENT' },
-    { label: 'Expense', value: 'EXPENSE' },
-    { label: 'Zakat', value: 'ZAKAT' },
-  ],
-};
-
-const MEMBER_REQUIRED_CATEGORIES = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
+import { TransactionFormFields } from '../components/TransactionFormFields';
+import type { Bank, Loan, Member, Transaction } from '../types';
 
 function RupeeIcon() {
   return <span style={{ fontWeight: 700 }}>₹</span>;
@@ -76,10 +56,9 @@ export function Transactions() {
   const [form] = Form.useForm();
   const [profitForm] = Form.useForm();
 
-  const flow = Form.useWatch('flow', form);
   const category = Form.useWatch('category', form);
   const selectedMemberId = Form.useWatch('memberId', form);
-  const memberRequired = MEMBER_REQUIRED_CATEGORIES.includes(category);
+  const bankRequired = category !== 'SAVING_DEPOSIT';
 
   const load = () => {
     setLoading(true);
@@ -258,7 +237,7 @@ export function Transactions() {
             ellipsis: true,
             render: (_, r) => (r.member ? `${r.member.name} (${r.member.memberCode})` : '-'),
           },
-          { title: 'Bank', dataIndex: ['bank', 'name'], width: 140, ellipsis: true },
+          { title: 'Bank', width: 140, ellipsis: true, render: (_, r) => r.bank?.name ?? '-' },
           {
             title: 'Flow',
             dataIndex: 'flow',
@@ -298,46 +277,13 @@ export function Transactions() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={{ date: dayjs() }}>
-          <Form.Item name="flow" label="Flow" rules={[{ required: true }]}>
-            <Select options={FLOW_OPTIONS} />
-          </Form.Item>
-          <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-            <Select options={flow ? CATEGORY_OPTIONS[flow as TxnFlow] : []} disabled={!flow} />
-          </Form.Item>
-          <Form.Item
-            name="memberId"
-            label={memberRequired ? 'Member' : 'Member (optional)'}
-            rules={memberRequired ? [{ required: true, message: 'Member is required for this category' }] : []}
-          >
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              options={members.map((m) => ({ label: `${m.name} (${m.memberCode})`, value: m.id }))}
-            />
-          </Form.Item>
-          {category === 'LOAN_REPAYMENT' && (
-            <Form.Item name="linkedLoanId" label="Loan">
-              <Select
-                options={memberLoans.map((l) => ({
-                  label: `₹${l.principalAmount} on ${dayjs(l.disbursedDate).format('DD-MMM-YYYY')} (balance ₹${l.balance})`,
-                  value: l.id,
-                }))}
-              />
-            </Form.Item>
-          )}
-          <Form.Item name="bankId" label="Bank" rules={[{ required: true }]}>
-            <Select options={banks.map((b) => ({ label: b.name, value: b.id }))} />
-          </Form.Item>
-          <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
-            <InputNumber style={{ width: '100%' }} min={0.01} />
-          </Form.Item>
-          <Form.Item name="date" label="Date" rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="description" label="Description" rules={[{ required: true }]}>
-            <Input.TextArea rows={2} />
-          </Form.Item>
+          <TransactionFormFields
+            form={form}
+            members={members}
+            banks={banks}
+            memberLoans={memberLoans}
+            bankRequired={bankRequired}
+          />
         </Form>
       </Modal>
 

@@ -14,11 +14,12 @@ import {
   Table,
   message,
 } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
-import type { Bank } from '../types';
+import { TransactionFormFields } from '../components/TransactionFormFields';
+import type { Bank, Loan, Member } from '../types';
 
 export function Banks() {
   const screens = Grid.useBreakpoint();
@@ -31,6 +32,14 @@ export function Banks() {
   const [editing, setEditing] = useState<Bank | null>(null);
   const [form] = Form.useForm();
 
+  const [members, setMembers] = useState<Member[]>([]);
+  const [memberLoans, setMemberLoans] = useState<Loan[]>([]);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [entrySaving, setEntrySaving] = useState(false);
+  const [entryForm] = Form.useForm();
+  const entryCategory = Form.useWatch('category', entryForm);
+  const entryMemberId = Form.useWatch('memberId', entryForm);
+
   const load = () => {
     setLoading(true);
     return api
@@ -41,7 +50,33 @@ export function Banks() {
 
   useEffect(() => {
     load();
+    api.get('/members').then(({ data }) => setMembers(data));
   }, []);
+
+  useEffect(() => {
+    if (entryCategory === 'LOAN_REPAYMENT' && entryMemberId) {
+      api.get('/loans', { params: { memberId: entryMemberId } }).then(({ data }) => setMemberLoans(data));
+    } else {
+      setMemberLoans([]);
+    }
+  }, [entryCategory, entryMemberId]);
+
+  const openAddEntry = () => {
+    entryForm.resetFields();
+    setEntryOpen(true);
+  };
+
+  const onSubmitEntry = async (values: any) => {
+    setEntrySaving(true);
+    try {
+      await api.post('/transactions', { ...values, date: values.date.toISOString() });
+      message.success('Entry added');
+      setEntryOpen(false);
+      load();
+    } finally {
+      setEntrySaving(false);
+    }
+  };
 
   const openAdd = () => {
     setEditing(null);
@@ -87,9 +122,14 @@ export function Banks() {
 
   return (
     <>
-      <Button type="primary" style={{ marginBottom: 16 }} onClick={openAdd}>
-        Add Bank
-      </Button>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Button type="primary" onClick={openAdd}>
+          Add Bank
+        </Button>
+        <Button icon={<PlusOutlined />} onClick={openAddEntry}>
+          Add Entry
+        </Button>
+      </Space>
       <Table
         rowKey="id"
         loading={loading}
@@ -204,6 +244,19 @@ export function Banks() {
           >
             <InputNumber style={{ width: '100%' }} min={0} />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Add Entry"
+        open={entryOpen}
+        onCancel={() => setEntryOpen(false)}
+        onOk={entryForm.submit}
+        confirmLoading={entrySaving}
+        destroyOnClose
+      >
+        <Form form={entryForm} layout="vertical" onFinish={onSubmitEntry} initialValues={{ date: dayjs() }}>
+          <TransactionFormFields form={entryForm} members={members} banks={banks} memberLoans={memberLoans} />
         </Form>
       </Modal>
     </>

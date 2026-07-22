@@ -127,8 +127,8 @@ model Transaction {
   id             String      @id @default(cuid())
   memberId       String?
   member         Member?     @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  bankId         String
-  bank           Bank        @relation(fields: [bankId], references: [id])
+  bankId         String?
+  bank           Bank?       @relation(fields: [bankId], references: [id])
   date           DateTime
   description    String
   flow           TxnFlow

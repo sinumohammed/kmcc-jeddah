@@ -52,8 +52,8 @@ export interface Transaction {
   id: string;
   memberId?: string | null;
   member?: { id: string; name: string; memberCode: string } | null;
-  bankId: string;
-  bank?: Bank;
+  bankId?: string | null;
+  bank?: Bank | null;
   date: string;
   description: string;
   flow: TxnFlow;

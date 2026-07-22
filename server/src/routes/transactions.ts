@@ -42,8 +42,11 @@ router.post('/', requireAdmin, async (req, res) => {
   const { memberId, bankId, date, description, flow, category, amount, linkedLoanId } =
     req.body ?? {};
 
-  if (!bankId || !date || !flow || !category || !amount) {
-    return res.status(400).json({ error: 'bankId, date, flow, category and amount are required' });
+  if (!date || !flow || !category || !amount) {
+    return res.status(400).json({ error: 'date, flow, category and amount are required' });
+  }
+  if (category !== 'SAVING_DEPOSIT' && !bankId) {
+    return res.status(400).json({ error: 'bankId is required for this category' });
   }
 
   const memberRequiredCategories = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
@@ -54,7 +57,7 @@ router.post('/', requireAdmin, async (req, res) => {
   const txn = await prisma.transaction.create({
     data: {
       memberId: memberId || null,
-      bankId,
+      bankId: bankId || null,
       date: new Date(date),
       description: description ?? '',
       flow,
