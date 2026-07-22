@@ -55,7 +55,7 @@ export function AppLayout() {
             ? { position: 'fixed', insetInlineStart: 0, top: 0, bottom: 0, zIndex: 999 }
             : undefined
         }
-        zeroWidthTriggerStyle={{ top: 16 }}
+        zeroWidthTriggerStyle={{ top: 12 }}
       >
         <div style={{ color: '#fff', padding: 16, fontWeight: 700, fontSize: 18 }}>KMCC</div>
         <Menu
@@ -82,14 +82,30 @@ export function AppLayout() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: 12,
             padding: '0 16px',
+            paddingInlineStart: isMobile ? 44 : 16,
           }}
         >
-          <Typography.Text strong style={{ color: token.colorText }}>
+          <Typography.Text
+            strong
+            style={{
+              color: token.colorText,
+              minWidth: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {member?.name} ({member?.memberCode})
           </Typography.Text>
-          <Button icon={<LogoutOutlined />} onClick={() => { logout(); navigate('/login'); }}>
-            Logout
+          <Button
+            icon={<LogoutOutlined />}
+            title="Logout"
+            style={{ flexShrink: 0 }}
+            onClick={() => { logout(); navigate('/login'); }}
+          >
+            {!isMobile && 'Logout'}
           </Button>
         </Header>
         <Content style={{ margin: 16 }}>
