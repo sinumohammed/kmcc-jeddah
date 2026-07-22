@@ -55,6 +55,7 @@ export function AppLayout() {
             ? { position: 'fixed', insetInlineStart: 0, top: 0, bottom: 0, zIndex: 999 }
             : undefined
         }
+        zeroWidthTriggerStyle={{ top: 16 }}
       >
         <div style={{ color: '#fff', padding: 16, fontWeight: 700, fontSize: 18 }}>KMCC</div>
         <Menu
