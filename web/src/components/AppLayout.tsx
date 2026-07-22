@@ -37,6 +37,8 @@ export function AppLayout() {
         { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
       ];
 
+  const mobileMenuOpen = isMobile && !collapsed;
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -48,6 +50,11 @@ export function AppLayout() {
           setIsMobile(broken);
           setCollapsed(broken);
         }}
+        style={
+          mobileMenuOpen
+            ? { position: 'fixed', insetInlineStart: 0, top: 0, bottom: 0, zIndex: 999 }
+            : undefined
+        }
       >
         <div style={{ color: '#fff', padding: 16, fontWeight: 700, fontSize: 18 }}>KMCC</div>
         <Menu
@@ -61,6 +68,12 @@ export function AppLayout() {
           }}
         />
       </Sider>
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setCollapsed(true)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.45)', zIndex: 998 }}
+        />
+      )}
       <Layout>
         <Header
           style={{
