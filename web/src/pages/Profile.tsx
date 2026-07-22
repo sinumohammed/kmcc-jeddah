@@ -1,4 +1,4 @@
-import { Alert, Avatar, Button, Card, Select, Space, Statistic, Table, Tag, Typography, message, theme } from 'antd';
+import { Alert, Avatar, Button, Card, Grid, Select, Space, Statistic, Table, Tag, Typography, message, theme } from 'antd';
 import { DownloadOutlined, IdcardOutlined, EnvironmentOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
@@ -30,6 +30,8 @@ export function Profile() {
   const authMember = useAuthStore((s) => s.member)!;
   const isAdmin = authMember.role === 'ADMIN';
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
 
   const [memberList, setMemberList] = useState<Member[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(isAdmin ? undefined : authMember.id);
@@ -132,7 +134,7 @@ export function Profile() {
       )}
 
       <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Avatar
             size={64}
             icon={<UserOutlined />}
@@ -152,72 +154,98 @@ export function Profile() {
                 {target.name}
               </Typography.Title>
             )}
-            <Space size={4} style={{ marginTop: 2 }}>
-              <IdcardOutlined style={{ color: token.colorTextSecondary }} />
-              <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
-            </Space>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 2, flexWrap: 'wrap' }}>
+              <Space size={4}>
+                <IdcardOutlined style={{ color: token.colorTextSecondary }} />
+                <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
+              </Space>
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={pdfGenerating}
+                title="Download Statement"
+                style={{ padding: '0 6px', fontSize: 12, height: 20, marginLeft: 8 }}
+                onClick={onDownloadPdf}
+              />
+            </div>
+            <a
+              href={`tel:${target.mobile}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}
+            >
+              <PhoneOutlined /> {target.mobile}
+            </a>
           </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' }}>
-            {showRing && (
+          {showRing && (
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: buildSegmentedRing(filledSegments, RING_SEGMENTS, '#1677ff', token.colorFillSecondary),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
               <div
                 style={{
-                  width: 64,
-                  height: 64,
+                  width: 38,
+                  height: 38,
                   borderRadius: '50%',
-                  background: buildSegmentedRing(filledSegments, RING_SEGMENTS, '#1677ff', token.colorFillSecondary),
+                  background: token.colorBgContainer,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 0 6px auto',
                 }}
               >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    background: token.colorBgContainer,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Typography.Text strong style={{ fontSize: 12 }}>
-                    {paidPercent}%
-                  </Typography.Text>
-                </div>
+                <Typography.Text strong style={{ fontSize: 11 }}>
+                  {paidPercent}%
+                </Typography.Text>
               </div>
-            )}
-            <Statistic title={balanceLabel} value={displayBalance} prefix="₹" precision={2} />
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              loading={pdfGenerating}
-              title="Download Statement"
-              style={{ marginTop: 4, padding: '0 6px', fontSize: 12 }}
-              onClick={onDownloadPdf}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-          <a href={`tel:${target.mobile}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <PhoneOutlined /> {target.mobile}
-          </a>
-          {target.address && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-              <EnvironmentOutlined style={{ marginTop: 4 }} />
-              <Typography.Text type="secondary">{target.address}</Typography.Text>
             </div>
           )}
-          <Space wrap size={4}>
-            <Tag color={target.isSavingMember ? 'blue' : target.isLoanMember ? 'volcano' : 'default'}>
-              {target.isSavingMember ? 'Saving Member' : target.isLoanMember ? 'Loan Member' : 'Member'}
-            </Tag>
-            {target.isSavingMember && monthlyScheme && (
-              <Tag color="gold">Scheme ₹{Number(monthlyScheme).toFixed(0)}</Tag>
+        </div>
+
+        {target.address && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 4 }}>
+            <EnvironmentOutlined style={{ marginTop: 4 }} />
+            <Typography.Text type="secondary">{target.address}</Typography.Text>
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginTop: isMobile ? 2 : 6,
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Space wrap size={4}>
+              <Tag color={target.isSavingMember ? 'blue' : target.isLoanMember ? 'volcano' : 'default'}>
+                {target.isSavingMember ? 'Saving Member' : target.isLoanMember ? 'Loan Member' : 'Member'}
+              </Tag>
+              {!isMobile && target.isSavingMember && monthlyScheme && (
+                <Tag color="gold">Scheme ₹{Number(monthlyScheme).toFixed(0)}</Tag>
+              )}
+            </Space>
+            {isMobile && target.isSavingMember && monthlyScheme && (
+              <Tag color="gold" style={{ marginTop: 0 }}>
+                Scheme ₹{Number(monthlyScheme).toFixed(0)}
+              </Tag>
             )}
-          </Space>
+          </div>
+          <Statistic
+            title={balanceLabel}
+            value={displayBalance}
+            prefix="₹"
+            precision={2}
+            style={{ textAlign: 'right' }}
+          />
         </div>
       </Card>
 
@@ -233,7 +261,7 @@ export function Profile() {
           ) : (
             <>
               <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                {paidMonths} of 12 months' contributions paid for {currentYear}
+                {paidMonths} of 12 month's contributions paid for {currentYear}
               </Typography.Text>
               <Table
                 rowKey="id"

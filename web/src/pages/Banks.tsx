@@ -4,6 +4,7 @@ import {
   DatePicker,
   Descriptions,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -20,6 +21,9 @@ import { api } from '../api/client';
 import type { Bank } from '../types';
 
 export function Banks() {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
+
   const [banks, setBanks] = useState<Bank[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -92,25 +96,27 @@ export function Banks() {
         dataSource={banks}
         expandable={{
           expandedRowRender: (bank) => (
-            <Descriptions size="small" column={2} bordered>
-              <Descriptions.Item label="Account Holder">{bank.accountHolderName || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Branch Sol ID">{bank.branchSolId || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Customer ID">{bank.customerId || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Account Open Date">
-                {bank.accountOpenDate ? dayjs(bank.accountOpenDate).format('DD-MMM-YYYY') : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Mode of Operation">{bank.modeOfOperation || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Joint Holders">{bank.jointHolders || '-'}</Descriptions.Item>
-              <Descriptions.Item label="MICR Code">{bank.micrCode || '-'}</Descriptions.Item>
-              <Descriptions.Item label="SWIFT Code">{bank.swiftCode || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Currency">{bank.currency}</Descriptions.Item>
-              <Descriptions.Item label="Nomination">
-                {bank.nominationRegistered ? 'Registered' : 'Not Registered'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Opening Balance">
-                ₹{Number(bank.openingBalance).toFixed(2)}
-              </Descriptions.Item>
-            </Descriptions>
+            <div style={{ overflowX: 'auto' }}>
+              <Descriptions size="small" column={isMobile ? 1 : 2} bordered style={{ minWidth: isMobile ? 280 : 560 }}>
+                <Descriptions.Item label="Account Holder">{bank.accountHolderName || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Branch Sol ID">{bank.branchSolId || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Customer ID">{bank.customerId || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Account Open Date">
+                  {bank.accountOpenDate ? dayjs(bank.accountOpenDate).format('DD-MMM-YYYY') : '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Mode of Operation">{bank.modeOfOperation || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Joint Holders">{bank.jointHolders || '-'}</Descriptions.Item>
+                <Descriptions.Item label="MICR Code">{bank.micrCode || '-'}</Descriptions.Item>
+                <Descriptions.Item label="SWIFT Code">{bank.swiftCode || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Currency">{bank.currency}</Descriptions.Item>
+                <Descriptions.Item label="Nomination">
+                  {bank.nominationRegistered ? 'Registered' : 'Not Registered'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Opening Balance">
+                  ₹{Number(bank.openingBalance).toFixed(2)}
+                </Descriptions.Item>
+              </Descriptions>
+            </div>
           ),
         }}
         scroll={{ x: 700 }}
