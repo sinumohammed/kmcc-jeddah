@@ -1,4 +1,4 @@
-import { Card, Col, List, Modal, Row, Statistic, Typography } from 'antd';
+import { Card, Col, List, Modal, Row, Statistic, Typography, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -37,6 +37,7 @@ export function AdminDashboard() {
   const [bankSummaries, setBankSummaries] = useState<BankSummary[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
   useEffect(() => {
     api
@@ -114,7 +115,7 @@ export function AdminDashboard() {
                   position: 'absolute',
                   inset: 30,
                   borderRadius: '50%',
-                  background: '#fff',
+                  background: token.colorBgContainer,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
