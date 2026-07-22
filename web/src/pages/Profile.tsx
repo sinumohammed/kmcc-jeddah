@@ -1,10 +1,11 @@
-import { Alert, Avatar, Card, Select, Space, Statistic, Table, Tag, Typography, theme } from 'antd';
-import { IdcardOutlined, EnvironmentOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Button, Card, Select, Space, Statistic, Table, Tag, Typography, message, theme } from 'antd';
+import { DownloadOutlined, IdcardOutlined, EnvironmentOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
 import { Loader } from '../components/Loader';
 import { useAuthStore } from '../store/auth';
+import { downloadMemberStatementPdf } from '../utils/pdf';
 import type { Loan, Member, MonthlyContribution, Transaction } from '../types';
 
 const MONTH_NAMES = [
@@ -24,6 +25,7 @@ export function Profile() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -87,6 +89,17 @@ export function Profile() {
   const currentYear = dayjs().year();
   const monthlyScheme = target.monthlyAmounts?.find((m) => m.year === currentYear)?.amount;
 
+  const onDownloadPdf = async () => {
+    setPdfGenerating(true);
+    try {
+      await downloadMemberStatementPdf(target, transactions);
+    } catch {
+      message.error('Failed to generate PDF');
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   return (
     <>
       {isAdmin && (
@@ -126,13 +139,17 @@ export function Profile() {
               <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
             </Space>
           </div>
-          <Statistic
-            title={balanceLabel}
-            value={displayBalance}
-            prefix="₹"
-            precision={2}
-            style={{ flexShrink: 0, textAlign: 'right' }}
-          />
+          <div style={{ flexShrink: 0, textAlign: 'right' }}>
+            <Statistic title={balanceLabel} value={displayBalance} prefix="₹" precision={2} />
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              loading={pdfGenerating}
+              title="Download Statement"
+              style={{ marginTop: 4 }}
+              onClick={onDownloadPdf}
+            />
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
