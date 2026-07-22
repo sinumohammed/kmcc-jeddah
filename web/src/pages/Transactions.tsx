@@ -3,6 +3,7 @@ import {
   Button,
   DatePicker,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -15,7 +16,14 @@ import {
   Upload,
   message,
 } from 'antd';
-import { EditOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import {
+  EditOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  PlusOutlined,
+  DollarCircleOutlined,
+} from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -49,6 +57,9 @@ function flowLabel(flow: string) {
 }
 
 export function Transactions() {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
+
   const [searchParams, setSearchParams] = useSearchParams();
   const bankFilter = searchParams.get('bankId') ?? undefined;
 
@@ -207,21 +218,24 @@ export function Transactions() {
   return (
     <>
       <Space style={{ marginBottom: 16 }} wrap>
-        <Button type="primary" onClick={openAdd}>
-          Add Transaction
+        <Button type="primary" icon={<PlusOutlined />} title="Add Transaction" onClick={openAdd}>
+          {!isMobile && 'Add Transaction'}
         </Button>
-        <Button onClick={() => setProfitOpen(true)}>Distribute Profit</Button>
-        <Button icon={<DownloadOutlined />} onClick={onExport}>
-          Export CSV
+        <Button icon={<DollarCircleOutlined />} title="Distribute Profit" onClick={() => setProfitOpen(true)}>
+          {!isMobile && 'Distribute Profit'}
+        </Button>
+        <Button icon={<DownloadOutlined />} title="Export CSV" onClick={onExport}>
+          {!isMobile && 'Export CSV'}
         </Button>
         <Button
           icon={<UploadOutlined />}
+          title="Import CSV"
           onClick={() => {
             setImportResult(null);
             setImportOpen(true);
           }}
         >
-          Import CSV
+          {!isMobile && 'Import CSV'}
         </Button>
         {bankFilter && (
           <Tag closable onClose={clearBankFilter} color="blue">
