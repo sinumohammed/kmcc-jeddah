@@ -7,10 +7,12 @@ import {
   Modal,
   Popconfirm,
   Radio,
+  Space,
   Table,
   Tag,
   message,
 } from 'antd';
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
@@ -108,13 +110,15 @@ export function Members() {
         rowKey="id"
         loading={loading}
         dataSource={members}
+        scroll={{ x: 860 }}
         columns={[
-          { title: 'Member ID', dataIndex: 'memberCode' },
-          { title: 'Name', dataIndex: 'name' },
-          { title: 'Mobile', dataIndex: 'mobile' },
-          { title: 'Address', dataIndex: 'address' },
+          { title: 'Member ID', dataIndex: 'memberCode', width: 110 },
+          { title: 'Name', dataIndex: 'name', width: 140, ellipsis: true },
+          { title: 'Mobile', dataIndex: 'mobile', width: 120 },
+          { title: 'Address', dataIndex: 'address', width: 200, ellipsis: true },
           {
             title: 'Type',
+            width: 90,
             render: (_, r) =>
               r.isSavingMember ? (
                 <Tag color="blue">Saving</Tag>
@@ -124,20 +128,23 @@ export function Members() {
                 '-'
               ),
           },
-          { title: 'Join Date', dataIndex: 'joinDate', render: (d) => dayjs(d).format('DD-MMM-YYYY') },
+          {
+            title: 'Join Date',
+            dataIndex: 'joinDate',
+            width: 110,
+            render: (d) => dayjs(d).format('DD-MMM-YYYY'),
+          },
           {
             title: 'Actions',
+            width: 90,
+            fixed: 'right',
             render: (_, record) => (
-              <>
-                <Button size="small" style={{ marginRight: 8 }} onClick={() => openEdit(record)}>
-                  Edit
-                </Button>
+              <Space>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
                 <Popconfirm title="Remove this member?" onConfirm={() => onDelete(record.id)}>
-                  <Button danger size="small">
-                    Delete
-                  </Button>
+                  <Button danger size="small" icon={<DeleteOutlined />} />
                 </Popconfirm>
-              </>
+              </Space>
             ),
           },
         ]}

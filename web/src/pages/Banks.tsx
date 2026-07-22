@@ -9,9 +9,11 @@ import {
   Modal,
   Popconfirm,
   Select,
+  Space,
   Table,
   message,
 } from 'antd';
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
@@ -111,24 +113,23 @@ export function Banks() {
             </Descriptions>
           ),
         }}
+        scroll={{ x: 700 }}
         columns={[
-          { title: 'Bank Name', dataIndex: 'name' },
-          { title: 'Account Number', dataIndex: 'accountNumber' },
-          { title: 'IFSC', dataIndex: 'ifscCode' },
-          { title: 'Branch', dataIndex: 'branchName' },
+          { title: 'Bank Name', dataIndex: 'name', width: 160, ellipsis: true },
+          { title: 'Account Number', dataIndex: 'accountNumber', width: 160, ellipsis: true },
+          { title: 'IFSC', dataIndex: 'ifscCode', width: 120 },
+          { title: 'Branch', dataIndex: 'branchName', width: 160, ellipsis: true },
           {
             title: 'Actions',
+            width: 90,
+            fixed: 'right',
             render: (_, record) => (
-              <>
-                <Button size="small" style={{ marginRight: 8 }} onClick={() => openEdit(record)}>
-                  Edit
-                </Button>
+              <Space>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
                 <Popconfirm title="Remove this bank?" onConfirm={() => onDelete(record.id)}>
-                  <Button danger size="small">
-                    Delete
-                  </Button>
+                  <Button danger size="small" icon={<DeleteOutlined />} />
                 </Popconfirm>
-              </>
+              </Space>
             ),
           },
         ]}

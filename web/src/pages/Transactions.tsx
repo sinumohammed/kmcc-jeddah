@@ -233,7 +233,7 @@ export function Transactions() {
         rowKey="id"
         loading={loading}
         dataSource={transactions}
-        scroll={{ x: 960 }}
+        scroll={{ x: 1030 }}
         columns={[
           {
             title: 'Date',
