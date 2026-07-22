@@ -9,7 +9,7 @@ interface ThemeState {
 }
 
 const stored = localStorage.getItem('kmcc_theme');
-const initial: ThemeMode = stored === 'dark' ? 'dark' : 'light';
+const initial: ThemeMode = stored === 'light' ? 'light' : 'dark';
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
   mode: initial,
