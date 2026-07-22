@@ -111,6 +111,21 @@ router.put('/:id', requireAdmin, async (req, res) => {
   res.json({ id: member.id });
 });
 
+router.put('/:id/contact', async (req, res) => {
+  const id = req.params.id as string;
+  if (req.user!.role !== 'ADMIN' && req.user!.memberId !== id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { mobile, address } = req.body ?? {};
+  if (!mobile) return res.status(400).json({ error: 'mobile is required' });
+
+  const member = await prisma.member.update({
+    where: { id },
+    data: { mobile, address: address || null },
+  });
+  res.json({ id: member.id, mobile: member.mobile, address: member.address });
+});
+
 router.delete('/:id', requireAdmin, async (req, res) => {
   const id = req.params.id as string;
   await prisma.member.update({ where: { id }, data: { active: false } });

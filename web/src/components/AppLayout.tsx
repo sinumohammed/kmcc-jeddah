@@ -6,6 +6,7 @@ import {
   SwapOutlined,
   UserOutlined,
   LogoutOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -28,8 +29,12 @@ export function AppLayout() {
         { key: '/banks', icon: <BankOutlined />, label: 'Banks' },
         { key: '/transactions', icon: <SwapOutlined />, label: 'Transactions' },
         { key: '/profile', icon: <UserOutlined />, label: 'Member Profile' },
+        { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
       ]
-    : [{ key: '/profile', icon: <UserOutlined />, label: 'My Profile' }];
+    : [
+        { key: '/profile', icon: <UserOutlined />, label: 'My Profile' },
+        { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
+      ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

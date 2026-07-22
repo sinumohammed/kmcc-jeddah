@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { comparePassword, signToken } from '../lib/auth';
+import { comparePassword, hashPassword, signToken } from '../lib/auth';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -54,6 +55,26 @@ router.post('/login', async (req, res) => {
       isLoanMember: member.isLoanMember,
     },
   });
+});
+
+router.post('/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  const member = await prisma.member.findUnique({ where: { id: req.user!.memberId } });
+  if (!member) return res.status(404).json({ error: 'Not found' });
+
+  const ok = await comparePassword(currentPassword, member.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.member.update({ where: { id: member.id }, data: { passwordHash } });
+  res.status(204).send();
 });
 
 export default router;
