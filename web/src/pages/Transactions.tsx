@@ -16,14 +16,7 @@ import {
   Upload,
   message,
 } from 'antd';
-import {
-  EditOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  UploadOutlined,
-  PlusOutlined,
-  DollarCircleOutlined,
-} from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined, PlusOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -51,6 +44,10 @@ const CATEGORY_OPTIONS: Record<TxnFlow, { label: string; value: string }[]> = {
 };
 
 const MEMBER_REQUIRED_CATEGORIES = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
+
+function RupeeIcon() {
+  return <span style={{ fontWeight: 700 }}>₹</span>;
+}
 
 function flowLabel(flow: string) {
   return flow === 'INCOME' ? 'Deposit' : 'Withdrawal';
@@ -221,7 +218,7 @@ export function Transactions() {
         <Button type="primary" icon={<PlusOutlined />} title="Add Transaction" onClick={openAdd}>
           {!isMobile && 'Add Transaction'}
         </Button>
-        <Button icon={<DollarCircleOutlined />} title="Distribute Profit" onClick={() => setProfitOpen(true)}>
+        <Button icon={<RupeeIcon />} title="Distribute Profit" onClick={() => setProfitOpen(true)}>
           {!isMobile && 'Distribute Profit'}
         </Button>
         <Button icon={<DownloadOutlined />} title="Export CSV" onClick={onExport}>
