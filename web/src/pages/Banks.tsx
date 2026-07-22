@@ -381,7 +381,14 @@ export function Banks() {
           onFinish={onSubmitEntry}
           initialValues={{ date: dayjs(), flow: 'INCOME', category: 'SAVING_DEPOSIT' }}
         >
-          <TransactionFormFields form={entryForm} members={[]} banks={banks} memberLoans={[]} showMember={false} />
+          <TransactionFormFields
+            form={entryForm}
+            members={[]}
+            banks={banks}
+            memberLoans={[]}
+            showMember={false}
+            restrictLoanCategories
+          />
         </Form>
       </Modal>
 

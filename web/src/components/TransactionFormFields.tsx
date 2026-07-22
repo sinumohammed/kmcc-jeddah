@@ -16,6 +16,12 @@ interface Props {
   memberLoans: Loan[];
   bankRequired?: boolean;
   showMember?: boolean;
+  // Only meaningful when showMember is false. Excludes LOAN_DISBURSEMENT/LOAN_REPAYMENT from
+  // the Category dropdown — needed when *creating* a bank-only entry (no member field to
+  // satisfy their member requirement), but must stay false when *editing* an existing
+  // transaction: an existing loan-linked row's category wouldn't match any option in a
+  // filtered list, leaving the Select showing a blank/unmatched value.
+  restrictLoanCategories?: boolean;
 }
 
 export function TransactionFormFields({
@@ -25,15 +31,16 @@ export function TransactionFormFields({
   memberLoans,
   bankRequired = true,
   showMember = true,
+  restrictLoanCategories = false,
 }: Props) {
   const flow = Form.useWatch('flow', form);
   const category = Form.useWatch('category', form);
   const memberRequired = MEMBER_REQUIRED_CATEGORIES.includes(category);
 
   const categoryOptions = flow
-    ? showMember
-      ? CATEGORY_OPTIONS[flow as TxnFlow]
-      : CATEGORY_OPTIONS[flow as TxnFlow].filter((o) => !LOAN_LINKED_CATEGORIES.includes(o.value))
+    ? restrictLoanCategories
+      ? CATEGORY_OPTIONS[flow as TxnFlow].filter((o) => !LOAN_LINKED_CATEGORIES.includes(o.value))
+      : CATEGORY_OPTIONS[flow as TxnFlow]
     : [];
 
   return (
