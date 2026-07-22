@@ -1,5 +1,5 @@
 import { Card, Col, Grid, List, Modal, Row, Statistic, Typography, theme } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
+import { PieChartOutlined, TeamOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -17,6 +17,14 @@ const TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
 ];
 
 const DONUT_COLORS = ['#0f3460', '#16a085', '#8e44ad', '#d35400', '#2980b9', '#27ae60', '#c0392b', '#f39c12'];
+
+function DrillBadge({ color }: { color: string }) {
+  return (
+    <PieChartOutlined
+      style={{ position: 'absolute', top: 10, right: 12, fontSize: 14, color, opacity: 0.6 }}
+    />
+  );
+}
 
 function buildDonutGradient(shares: { value: number; color: string }[]) {
   let cursor = 0;
@@ -93,7 +101,13 @@ export function AdminDashboard() {
     <>
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={12} md={8} lg={6}>
-          <Card size={isMobile ? 'small' : 'default'} hoverable onClick={onMembersClick}>
+          <Card
+            size={isMobile ? 'small' : 'default'}
+            hoverable
+            onClick={onMembersClick}
+            style={{ position: 'relative', borderTop: '3px solid #0f3460' }}
+          >
+            <DrillBadge color="#0f3460" />
             <Statistic
               title={isMobile ? <span style={{ fontSize: 12 }}>Total Members</span> : 'Total Members'}
               value={membersSummary?.totalMembers ?? 0}
@@ -102,23 +116,28 @@ export function AdminDashboard() {
             />
           </Card>
         </Col>
-        {TILES.map((tile) => (
-          <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
-            <Card
-              size={isMobile ? 'small' : 'default'}
-              hoverable={tile.key === 'totalBankBalance'}
-              onClick={tile.key === 'totalBankBalance' ? onBankBalanceClick : undefined}
-            >
-              <Statistic
-                title={isMobile ? <span style={{ fontSize: 12 }}>{tile.label}</span> : tile.label}
-                value={Number(summary?.[tile.key] ?? 0)}
-                precision={2}
-                prefix="₹"
-                valueStyle={{ color: tile.color, fontSize: isMobile ? 18 : undefined }}
-              />
-            </Card>
-          </Col>
-        ))}
+        {TILES.map((tile) => {
+          const drillable = tile.key === 'totalBankBalance';
+          return (
+            <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
+              <Card
+                size={isMobile ? 'small' : 'default'}
+                hoverable={drillable}
+                onClick={drillable ? onBankBalanceClick : undefined}
+                style={drillable ? { position: 'relative', borderTop: `3px solid ${tile.color}` } : undefined}
+              >
+                {drillable && <DrillBadge color={tile.color} />}
+                <Statistic
+                  title={isMobile ? <span style={{ fontSize: 12 }}>{tile.label}</span> : tile.label}
+                  value={Number(summary?.[tile.key] ?? 0)}
+                  precision={2}
+                  prefix="₹"
+                  valueStyle={{ color: tile.color, fontSize: isMobile ? 18 : undefined }}
+                />
+              </Card>
+            </Col>
+          );
+        })}
       </Row>
 
       <Modal
