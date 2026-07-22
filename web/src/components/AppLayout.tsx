@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Typography } from 'antd';
+import { Layout, Menu, Button, Typography, theme } from 'antd';
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -21,6 +21,7 @@ export function AppLayout() {
   const isAdmin = member?.role === 'ADMIN';
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { token } = theme.useToken();
 
   const items = isAdmin
     ? [
@@ -63,14 +64,14 @@ export function AppLayout() {
       <Layout>
         <Header
           style={{
-            background: '#fff',
+            background: token.colorBgContainer,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '0 16px',
           }}
         >
-          <Typography.Text strong>
+          <Typography.Text strong style={{ color: token.colorText }}>
             {member?.name} ({member?.memberCode})
           </Typography.Text>
           <Button icon={<LogoutOutlined />} onClick={() => { logout(); navigate('/login'); }}>
@@ -80,7 +81,7 @@ export function AppLayout() {
         <Content style={{ margin: 16 }}>
           <Outlet />
         </Content>
-        <Footer style={{ textAlign: 'center', color: 'rgba(0, 0, 0, 0.45)' }}>
+        <Footer style={{ textAlign: 'center', color: token.colorTextSecondary }}>
           KMCC | Designed by Sinu
         </Footer>
       </Layout>

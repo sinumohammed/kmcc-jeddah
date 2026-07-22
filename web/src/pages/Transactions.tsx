@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   DatePicker,
   Form,
@@ -10,13 +11,16 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
+  Upload,
   message,
 } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
+import { downloadCsv, parseCsv, toCsv } from '../utils/csv';
 import type { Bank, Loan, Member, Transaction, TxnFlow } from '../types';
 
 const FLOW_OPTIONS = [
@@ -58,6 +62,9 @@ export function Transactions() {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [profitOpen, setProfitOpen] = useState(false);
   const [distributing, setDistributing] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; errors: { row: number; error: string }[] } | null>(null);
   const [form] = Form.useForm();
   const [profitForm] = Form.useForm();
 
@@ -153,6 +160,50 @@ export function Transactions() {
 
   const clearBankFilter = () => setSearchParams({});
 
+  const onExport = () => {
+    const header = ['Date', 'MemberCode', 'MemberName', 'BankName', 'Flow', 'Category', 'Amount', 'Description'];
+    const rows = transactions.map((t) => [
+      dayjs(t.date).format('YYYY-MM-DD'),
+      t.member?.memberCode ?? '',
+      t.member?.name ?? '',
+      t.bank?.name ?? '',
+      t.flow,
+      t.category,
+      t.amount,
+      t.description,
+    ]);
+    downloadCsv(`transactions-${dayjs().format('YYYY-MM-DD')}.csv`, toCsv(header, rows));
+  };
+
+  const onImportFile = async (file: File) => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const parsed = parseCsv(text);
+      const rows = parsed.map((r) => ({
+        date: r.Date,
+        memberCode: r.MemberCode,
+        bankName: r.BankName,
+        flow: r.Flow,
+        category: r.Category,
+        amount: r.Amount,
+        description: r.Description,
+      }));
+      const { data } = await api.post('/transactions/import', { rows });
+      setImportResult(data);
+      if (data.created > 0) {
+        message.success(`Imported ${data.created} transaction(s)`);
+        load();
+      }
+    } catch (e: any) {
+      message.error(e.response?.data?.error ?? 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+    return false;
+  };
+
   return (
     <>
       <Space style={{ marginBottom: 16 }} wrap>
@@ -160,6 +211,18 @@ export function Transactions() {
           Add Transaction
         </Button>
         <Button onClick={() => setProfitOpen(true)}>Distribute Profit</Button>
+        <Button icon={<DownloadOutlined />} onClick={onExport}>
+          Export CSV
+        </Button>
+        <Button
+          icon={<UploadOutlined />}
+          onClick={() => {
+            setImportResult(null);
+            setImportOpen(true);
+          }}
+        >
+          Import CSV
+        </Button>
         {bankFilter && (
           <Tag closable onClose={clearBankFilter} color="blue">
             Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
@@ -293,6 +356,55 @@ export function Transactions() {
             savings collected to date.
           </p>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Import Transactions"
+        open={importOpen}
+        onCancel={() => setImportOpen(false)}
+        footer={
+          <Button onClick={() => setImportOpen(false)}>Close</Button>
+        }
+        destroyOnClose
+      >
+        <Typography.Paragraph>
+          Upload a CSV with columns: <code>Date</code> (YYYY-MM-DD), <code>MemberCode</code> (optional,
+          required for Saving), <code>BankName</code>, <code>Flow</code> (INCOME/EXPENSE or
+          Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit, Expense, Zakat),{' '}
+          <code>Amount</code>, <code>Description</code>. Loan disbursement/repayment rows are not
+          supported by import — add those from the Loans workflow.
+        </Typography.Paragraph>
+        <Upload.Dragger
+          accept=".csv"
+          multiple={false}
+          showUploadList={false}
+          disabled={importing}
+          beforeUpload={onImportFile}
+        >
+          <p className="ant-upload-drag-icon">
+            <UploadOutlined />
+          </p>
+          <p className="ant-upload-text">Click or drag a CSV file here to import</p>
+        </Upload.Dragger>
+
+        {importResult && (
+          <div style={{ marginTop: 16 }}>
+            <Alert
+              type={importResult.errors.length === 0 ? 'success' : 'warning'}
+              showIcon
+              message={`Imported ${importResult.created} of ${importResult.created + importResult.errors.length} row(s)`}
+            />
+            {importResult.errors.length > 0 && (
+              <ul style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8 }}>
+                {importResult.errors.map((e) => (
+                  <li key={e.row}>
+                    Row {e.row}: {e.error}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );

@@ -183,6 +183,97 @@ router.post('/profit-distribution', requireAdmin, async (req, res) => {
   res.status(201).json({ profitBatchId, count: created.length });
 });
 
+// Bulk import for historical/plain transactions (statements, back-entry).
+// Loan-linked categories are intentionally excluded: LOAN_DISBURSEMENT needs to
+// create a Loan record and LOAN_REPAYMENT needs a specific loan to apply
+// balance math against, neither of which can be inferred safely from a CSV row.
+const IMPORTABLE_CATEGORIES = new Set(['SAVING_DEPOSIT', 'INTEREST', 'PROFIT', 'EXPENSE', 'ZAKAT']);
+const CATEGORY_ALIASES: Record<string, string> = {
+  SAVING: 'SAVING_DEPOSIT',
+  SAVINGS: 'SAVING_DEPOSIT',
+  DEPOSIT: 'SAVING_DEPOSIT',
+};
+const FLOW_ALIASES: Record<string, string> = {
+  DEPOSIT: 'INCOME',
+  WITHDRAWAL: 'EXPENSE',
+};
+
+router.post('/import', requireAdmin, async (req, res) => {
+  const { rows } = req.body ?? {};
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'rows array is required' });
+  }
+
+  const banks = await prisma.bank.findMany();
+  const bankByName = new Map(banks.map((b) => [b.name.trim().toLowerCase(), b]));
+  const members = await prisma.member.findMany();
+  const memberByCode = new Map(members.map((m) => [m.memberCode.trim().toUpperCase(), m]));
+
+  const memberRequiredCategories = ['SAVING_DEPOSIT'];
+  const affectedMemberIds = new Set<string>();
+  const errors: { row: number; error: string }[] = [];
+  let created = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] ?? {};
+    try {
+      const bankName = String(r.bankName ?? r.bank ?? '').trim();
+      const bank = bankByName.get(bankName.toLowerCase());
+      if (!bank) throw new Error(`Bank "${bankName}" not found`);
+
+      const flowRaw = String(r.flow ?? '').trim().toUpperCase();
+      const flow = FLOW_ALIASES[flowRaw] ?? flowRaw;
+      if (!['INCOME', 'EXPENSE'].includes(flow)) throw new Error(`Invalid flow "${r.flow}"`);
+
+      const categoryRaw = String(r.category ?? '').trim().toUpperCase();
+      const category = CATEGORY_ALIASES[categoryRaw] ?? categoryRaw;
+      if (!IMPORTABLE_CATEGORIES.has(category)) {
+        throw new Error(`Category "${r.category}" is not supported for import`);
+      }
+
+      const amount = Number(r.amount);
+      if (!amount || amount <= 0) throw new Error(`Invalid amount "${r.amount}"`);
+
+      const date = new Date(r.date);
+      if (Number.isNaN(date.getTime())) throw new Error(`Invalid date "${r.date}"`);
+
+      let member: (typeof members)[number] | null = null;
+      const memberCode = String(r.memberCode ?? '').trim();
+      if (memberCode) {
+        member = memberByCode.get(memberCode.toUpperCase()) ?? null;
+        if (!member) throw new Error(`Member code "${memberCode}" not found`);
+      }
+      if (memberRequiredCategories.includes(category) && !member) {
+        throw new Error(`Member is required for category ${category}`);
+      }
+
+      await prisma.transaction.create({
+        data: {
+          memberId: member?.id ?? null,
+          bankId: bank.id,
+          date,
+          description: String(r.description ?? ''),
+          flow: flow as any,
+          category: category as any,
+          amount,
+          createdBy: req.user!.memberId,
+        },
+      });
+
+      if (category === 'SAVING_DEPOSIT' && member) affectedMemberIds.add(member.id);
+      created++;
+    } catch (e: any) {
+      errors.push({ row: i + 1, error: e.message ?? 'Unknown error' });
+    }
+  }
+
+  for (const memberId of affectedMemberIds) {
+    await recalculateAllContributions(memberId);
+  }
+
+  res.status(201).json({ created, errors });
+});
+
 router.delete('/profit-distribution/:batchId', requireAdmin, async (req, res) => {
   await prisma.transaction.deleteMany({ where: { profitBatchId: req.params.batchId as string } });
   res.status(204).send();
