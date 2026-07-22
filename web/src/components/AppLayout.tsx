@@ -112,7 +112,7 @@ export function AppLayout() {
           <Outlet />
         </Content>
         <Footer style={{ textAlign: 'center', color: token.colorTextSecondary }}>
-          KMCC | Designed by Sinu
+          KMCC JEDDAH NEERAD | Designed by Sinu
         </Footer>
       </Layout>
     </Layout>
