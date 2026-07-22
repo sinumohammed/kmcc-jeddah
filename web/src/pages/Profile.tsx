@@ -1,4 +1,4 @@
-import { Alert, Avatar, Card, Col, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { Alert, Avatar, Card, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
 import { PhoneOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
@@ -83,6 +83,8 @@ export function Profile() {
   const loanBalance = loans.reduce((sum, l) => sum + Number(l.balance), 0);
   const displayBalance = target.isSavingMember ? lifetimeSavings : target.isLoanMember ? loanBalance : 0;
   const balanceLabel = target.isLoanMember ? 'Outstanding Loan Balance' : 'Balance';
+  const currentYear = dayjs().year();
+  const monthlyScheme = target.monthlyAmounts?.find((m) => m.year === currentYear)?.amount;
 
   return (
     <>
@@ -98,36 +100,55 @@ export function Profile() {
       )}
 
       <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col>
-            <Avatar
-              size={80}
-              icon={<UserOutlined />}
-              src={!avatarError ? `/avatars/${target.memberCode}.jpg` : undefined}
-              onError={() => {
-                setAvatarError(true);
-                return true;
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Avatar
+            size={56}
+            icon={<UserOutlined />}
+            src={!avatarError ? `/avatars/${target.memberCode}.jpg` : undefined}
+            onError={() => {
+              setAvatarError(true);
+              return true;
+            }}
+          />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Typography.Text
+              strong
+              style={{
+                display: 'block',
+                fontSize: 16,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
-            />
-          </Col>
-          <Col flex="auto">
-            <Typography.Title level={4} style={{ marginBottom: 4 }}>
-              {target.name} ({target.memberCode})
-            </Typography.Title>
-            <Space direction="vertical" size={2}>
-              {target.address && <Typography.Text type="secondary">{target.address}</Typography.Text>}
-              <a href={`tel:${target.mobile}`}>
-                <PhoneOutlined /> {target.mobile}
-              </a>
-              <Tag color={target.isSavingMember ? 'blue' : target.isLoanMember ? 'volcano' : 'default'}>
-                {target.isSavingMember ? 'Saving Member' : target.isLoanMember ? 'Loan Member' : 'Member'}
-              </Tag>
-            </Space>
-          </Col>
-          <Col>
-            <Statistic title={balanceLabel} value={displayBalance} prefix="₹" precision={2} />
-          </Col>
-        </Row>
+              title={target.name}
+            >
+              {target.name}
+            </Typography.Text>
+            <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
+          </div>
+          <Statistic
+            title={balanceLabel}
+            value={displayBalance}
+            prefix="₹"
+            precision={2}
+            style={{ flexShrink: 0, textAlign: 'right' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+          {target.address && <Typography.Text type="secondary">{target.address}</Typography.Text>}
+          <a href={`tel:${target.mobile}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <PhoneOutlined /> {target.mobile}
+          </a>
+          <Space wrap size={4}>
+            <Tag color={target.isSavingMember ? 'blue' : target.isLoanMember ? 'volcano' : 'default'}>
+              {target.isSavingMember ? 'Saving Member' : target.isLoanMember ? 'Loan Member' : 'Member'}
+            </Tag>
+            {target.isSavingMember && monthlyScheme && (
+              <Tag color="gold">Scheme ₹{Number(monthlyScheme).toFixed(0)}</Tag>
+            )}
+          </Space>
+        </div>
       </Card>
 
       {target.isSavingMember && (
@@ -145,12 +166,17 @@ export function Profile() {
               pagination={false}
               dataSource={contributions}
               columns={[
-                { title: 'Month', dataIndex: 'month', render: (m) => MONTH_NAMES[m - 1] },
-                { title: 'Amount Due', dataIndex: 'amountDue', render: (a) => `₹${Number(a).toFixed(2)}` },
-                { title: 'Amount Paid', dataIndex: 'amountPaid', render: (a) => `₹${Number(a).toFixed(2)}` },
+                { title: 'Month', dataIndex: 'month', width: 90, render: (m) => MONTH_NAMES[m - 1] },
+                {
+                  title: 'Paid',
+                  dataIndex: 'amountPaid',
+                  width: 110,
+                  render: (a) => `₹${Number(a).toFixed(2)}`,
+                },
                 {
                   title: 'Status',
                   dataIndex: 'status',
+                  width: 90,
                   render: (s) => (
                     <Tag color={s === 'PAID' ? 'green' : s === 'PARTIAL' ? 'orange' : 'red'}>{s}</Tag>
                   ),
@@ -177,11 +203,22 @@ export function Profile() {
                 size="small"
                 pagination={false}
                 dataSource={loan.transactions ?? []}
+                scroll={{ x: 560 }}
                 columns={[
-                  { title: 'Date', dataIndex: 'date', render: (d) => dayjs(d).format('DD-MMM-YYYY') },
-                  { title: 'Category', dataIndex: 'category' },
-                  { title: 'Amount', dataIndex: 'amount', render: (a) => `₹${Number(a).toFixed(2)}` },
-                  { title: 'Description', dataIndex: 'description' },
+                  {
+                    title: 'Date',
+                    dataIndex: 'date',
+                    width: 110,
+                    render: (d) => dayjs(d).format('DD-MMM-YYYY'),
+                  },
+                  { title: 'Category', dataIndex: 'category', width: 140 },
+                  {
+                    title: 'Amount',
+                    dataIndex: 'amount',
+                    width: 120,
+                    render: (a) => `₹${Number(a).toFixed(2)}`,
+                  },
+                  { title: 'Description', dataIndex: 'description', width: 190, ellipsis: true },
                 ]}
               />
             </div>
@@ -193,18 +230,30 @@ export function Profile() {
         <Table
           rowKey="id"
           dataSource={transactions}
+          scroll={{ x: 700 }}
           columns={[
-            { title: 'Date', dataIndex: 'date', render: (d) => dayjs(d).format('DD-MMM-YYYY') },
+            {
+              title: 'Date',
+              dataIndex: 'date',
+              width: 110,
+              render: (d) => dayjs(d).format('DD-MMM-YYYY'),
+            },
             {
               title: 'Flow',
               dataIndex: 'flow',
+              width: 110,
               render: (f) => (
                 <Tag color={f === 'INCOME' ? 'green' : 'red'}>{f === 'INCOME' ? 'Deposit' : 'Withdrawal'}</Tag>
               ),
             },
-            { title: 'Category', dataIndex: 'category' },
-            { title: 'Amount', dataIndex: 'amount', render: (a) => `₹${Number(a).toFixed(2)}` },
-            { title: 'Description', dataIndex: 'description' },
+            { title: 'Category', dataIndex: 'category', width: 130 },
+            {
+              title: 'Amount',
+              dataIndex: 'amount',
+              width: 120,
+              render: (a) => `₹${Number(a).toFixed(2)}`,
+            },
+            { title: 'Description', dataIndex: 'description', width: 190, ellipsis: true },
           ]}
         />
       </Card>
