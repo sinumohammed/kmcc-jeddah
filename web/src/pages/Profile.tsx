@@ -12,6 +12,20 @@ const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
+const RING_SEGMENTS = 6;
+
+function buildSegmentedRing(filled: number, total: number, filledColor: string, emptyColor: string, gapDeg = 6) {
+  const segAngle = 360 / total;
+  const stops: string[] = [];
+  for (let i = 0; i < total; i++) {
+    const start = i * segAngle;
+    const end = start + segAngle - gapDeg;
+    stops.push(`${i < filled ? filledColor : emptyColor} ${start}deg ${end}deg`);
+    stops.push(`transparent ${end}deg ${start + segAngle}deg`);
+  }
+  return `conic-gradient(${stops.join(', ')})`;
+}
+
 export function Profile() {
   const authMember = useAuthStore((s) => s.member)!;
   const isAdmin = authMember.role === 'ADMIN';
@@ -88,6 +102,9 @@ export function Profile() {
   const balanceLabel = target.isLoanMember ? 'Outstanding Loan Balance' : 'Balance';
   const currentYear = dayjs().year();
   const monthlyScheme = target.monthlyAmounts?.find((m) => m.year === currentYear)?.amount;
+  const paidMonths = contributions.filter((c) => c.status === 'PAID').length;
+  const paidPercent = Math.round((paidMonths / 12) * 100);
+  const filledSegments = Math.round((paidMonths / 12) * RING_SEGMENTS);
 
   const onDownloadPdf = async () => {
     setPdfGenerating(true);
@@ -183,28 +200,63 @@ export function Profile() {
               description={`No monthly amount has been set for ${target.name} for ${dayjs().year()} yet. Set it from the Members page (Edit member) to generate this year's contribution schedule.`}
             />
           ) : (
-            <Table
-              rowKey="id"
-              pagination={false}
-              dataSource={contributions}
-              columns={[
-                { title: 'Month', dataIndex: 'month', width: 90, render: (m) => MONTH_NAMES[m - 1] },
-                {
-                  title: 'Paid',
-                  dataIndex: 'amountPaid',
-                  width: 110,
-                  render: (a) => `₹${Number(a).toFixed(2)}`,
-                },
-                {
-                  title: 'Status',
-                  dataIndex: 'status',
-                  width: 90,
-                  render: (s) => (
-                    <Tag color={s === 'PAID' ? 'green' : s === 'PARTIAL' ? 'orange' : 'red'}>{s}</Tag>
-                  ),
-                },
-              ]}
-            />
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: '50%',
+                    background: buildSegmentedRing(filledSegments, RING_SEGMENTS, '#1677ff', token.colorFillSecondary),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 68,
+                      height: 68,
+                      borderRadius: '50%',
+                      background: token.colorBgContainer,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Typography.Text strong style={{ fontSize: 18 }}>
+                      {paidPercent}%
+                    </Typography.Text>
+                  </div>
+                </div>
+                <Typography.Text type="secondary">
+                  {paidMonths} of 12 months' contributions paid for {currentYear}
+                </Typography.Text>
+              </div>
+              <Table
+                rowKey="id"
+                pagination={false}
+                dataSource={contributions}
+                columns={[
+                  { title: 'Month', dataIndex: 'month', width: 90, render: (m) => MONTH_NAMES[m - 1] },
+                  {
+                    title: 'Paid',
+                    dataIndex: 'amountPaid',
+                    width: 110,
+                    render: (a) => `₹${Number(a).toFixed(2)}`,
+                  },
+                  {
+                    title: 'Status',
+                    dataIndex: 'status',
+                    width: 90,
+                    render: (s) => (
+                      <Tag color={s === 'PAID' ? 'green' : s === 'PARTIAL' ? 'orange' : 'red'}>{s}</Tag>
+                    ),
+                  },
+                ]}
+              />
+            </>
           )}
         </Card>
       )}
