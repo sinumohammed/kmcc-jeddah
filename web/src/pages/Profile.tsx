@@ -1,5 +1,5 @@
-import { Alert, Avatar, Card, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
-import { PhoneOutlined, UserOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Card, Select, Space, Statistic, Table, Tag, Typography, theme } from 'antd';
+import { IdcardOutlined, EnvironmentOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
@@ -14,6 +14,7 @@ const MONTH_NAMES = [
 export function Profile() {
   const authMember = useAuthStore((s) => s.member)!;
   const isAdmin = authMember.role === 'ADMIN';
+  const { token } = theme.useToken();
 
   const [memberList, setMemberList] = useState<Member[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(isAdmin ? undefined : authMember.id);
@@ -100,9 +101,9 @@ export function Profile() {
       )}
 
       <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <Avatar
-            size={56}
+            size={64}
             icon={<UserOutlined />}
             src={!avatarError ? `/avatars/${target.memberCode}.jpg` : undefined}
             onError={() => {
@@ -111,20 +112,19 @@ export function Profile() {
             }}
           />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <Typography.Text
-              strong
-              style={{
-                display: 'block',
-                fontSize: 16,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={target.name}
-            >
-              {target.name}
-            </Typography.Text>
-            <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
+            {isAdmin ? (
+              <Typography.Text strong style={{ display: 'block', fontSize: 16 }}>
+                {target.name}
+              </Typography.Text>
+            ) : (
+              <Typography.Title level={5} style={{ marginBottom: 0 }}>
+                {target.name}
+              </Typography.Title>
+            )}
+            <Space size={4} style={{ marginTop: 2 }}>
+              <IdcardOutlined style={{ color: token.colorTextSecondary }} />
+              <Typography.Text type="secondary">{target.memberCode}</Typography.Text>
+            </Space>
           </div>
           <Statistic
             title={balanceLabel}
@@ -136,10 +136,15 @@ export function Profile() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-          {target.address && <Typography.Text type="secondary">{target.address}</Typography.Text>}
           <a href={`tel:${target.mobile}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <PhoneOutlined /> {target.mobile}
           </a>
+          {target.address && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <EnvironmentOutlined style={{ marginTop: 4 }} />
+              <Typography.Text type="secondary">{target.address}</Typography.Text>
+            </div>
+          )}
           <Space wrap size={4}>
             <Tag color={target.isSavingMember ? 'blue' : target.isLoanMember ? 'volcano' : 'default'}>
               {target.isSavingMember ? 'Saving Member' : target.isLoanMember ? 'Loan Member' : 'Member'}
