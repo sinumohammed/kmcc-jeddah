@@ -6,14 +6,19 @@ import { api } from '../api/client';
 import { Loader } from '../components/Loader';
 import type { BankSummary, DashboardSummary, MembersSummary } from '../types';
 
-const TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
-  { key: 'totalSavingsAmount', label: 'Total Savings Amount', color: '#0f3460' },
-  { key: 'totalLoanAmount', label: 'Total Loan Amount', color: '#c0392b' },
+const TILES: { key: keyof DashboardSummary; label: string; color: string; category?: string }[] = [
+  { key: 'totalSavingsAmount', label: 'Total Savings Amount', color: '#0f3460', category: 'SAVING_DEPOSIT' },
+  {
+    key: 'totalLoanAmount',
+    label: 'Total Loan Amount',
+    color: '#c0392b',
+    category: 'LOAN_DISBURSEMENT,LOAN_REPAYMENT',
+  },
   { key: 'totalBankBalance', label: 'Total Bank Balance', color: '#16a085' },
-  { key: 'totalProfit', label: 'Total Profit', color: '#8e44ad' },
-  { key: 'totalInterestAmount', label: 'Total Interest Amount', color: '#2980b9' },
-  { key: 'totalExpense', label: 'Total Expense', color: '#d35400' },
-  { key: 'totalZakat', label: 'Total Zakat', color: '#27ae60' },
+  { key: 'totalProfit', label: 'Total Profit', color: '#8e44ad', category: 'PROFIT' },
+  { key: 'totalInterestAmount', label: 'Total Interest Amount', color: '#2980b9', category: 'INTEREST' },
+  { key: 'totalExpense', label: 'Total Expense', color: '#d35400', category: 'EXPENSE' },
+  { key: 'totalZakat', label: 'Total Zakat', color: '#27ae60', category: 'ZAKAT' },
 ];
 
 const DONUT_COLORS = ['#0f3460', '#16a085', '#8e44ad', '#d35400', '#2980b9', '#27ae60', '#c0392b', '#f39c12'];
@@ -70,7 +75,7 @@ export function AdminDashboard() {
 
   const goToBank = (bankId: string) => {
     setBankModalOpen(false);
-    navigate(`/transactions?bankId=${bankId}`);
+    navigate(`/banks?bankId=${bankId}`);
   };
 
   const onMembersClick = () => {
@@ -117,13 +122,19 @@ export function AdminDashboard() {
           </Card>
         </Col>
         {TILES.map((tile) => {
-          const drillable = tile.key === 'totalBankBalance';
+          const isBank = tile.key === 'totalBankBalance';
+          const drillable = isBank || Boolean(tile.category);
+          const onClick = isBank
+            ? onBankBalanceClick
+            : tile.category
+              ? () => navigate(`/transactions?category=${tile.category}`)
+              : undefined;
           return (
             <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
               <Card
                 size={isMobile ? 'small' : 'default'}
                 hoverable={drillable}
-                onClick={drillable ? onBankBalanceClick : undefined}
+                onClick={onClick}
                 style={drillable ? { position: 'relative', borderTop: `3px solid ${tile.color}` } : undefined}
               >
                 {drillable && <DrillBadge color={tile.color} />}

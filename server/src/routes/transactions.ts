@@ -22,7 +22,10 @@ router.get('/', async (req, res) => {
   }
 
   if (bankId) where.bankId = bankId;
-  if (category) where.category = category;
+  if (category) {
+    const categories = category.split(',');
+    where.category = categories.length > 1 ? { in: categories } : categories[0];
+  }
   if (flow) where.flow = flow;
   if (from || to) {
     where.date = {};
@@ -49,9 +52,30 @@ router.post('/', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'bankId is required for this category' });
   }
 
-  const memberRequiredCategories = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
-  if (memberRequiredCategories.includes(category) && !memberId) {
+  // SAVING_DEPOSIT is member-required in the Transactions page UI, but the Banks page's
+  // bank-only entry form (no member picker) also posts SAVING_DEPOSIT rows to record the
+  // bank-side half of a deposit that was entered without a bank — so it's not hard-enforced
+  // here. LOAN_DISBURSEMENT/LOAN_REPAYMENT always tie to a specific Loan and stay required.
+  const loanLinkedCategories = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
+  if (loanLinkedCategories.includes(category) && !memberId) {
     return res.status(400).json({ error: 'A member must be selected for this category' });
+  }
+
+  // LOAN_DISBURSEMENT has no "existing loan" to link to (unlike LOAN_REPAYMENT) — every
+  // disbursement creates a brand new Loan record, mirroring POST /loans, so that
+  // Loan.balance (and the dashboard's Total Loan Amount, which sums it) reflects entries
+  // made from this generic form the same as ones made through the dedicated loan flow.
+  let resolvedLinkedLoanId = linkedLoanId || null;
+  if (category === 'LOAN_DISBURSEMENT' && memberId) {
+    const loan = await prisma.loan.create({
+      data: {
+        memberId,
+        principalAmount: amount,
+        disbursedDate: new Date(date),
+        balance: amount,
+      },
+    });
+    resolvedLinkedLoanId = loan.id;
   }
 
   const txn = await prisma.transaction.create({
@@ -63,7 +87,7 @@ router.post('/', requireAdmin, async (req, res) => {
       flow,
       category,
       amount,
-      linkedLoanId: linkedLoanId || null,
+      linkedLoanId: resolvedLinkedLoanId,
       createdBy: req.user!.memberId,
     },
   });

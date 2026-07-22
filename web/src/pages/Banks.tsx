@@ -12,18 +12,28 @@ import {
   Select,
   Space,
   Table,
+  Tag,
+  Typography,
   message,
 } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
 import { TransactionFormFields } from '../components/TransactionFormFields';
-import type { Bank, Loan, Member } from '../types';
+import type { Bank, Transaction } from '../types';
+
+function flowLabel(flow: string) {
+  return flow === 'INCOME' ? 'Deposit' : 'Withdrawal';
+}
 
 export function Banks() {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.sm;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bankFilter = searchParams.get('bankId') ?? undefined;
 
   const [banks, setBanks] = useState<Bank[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,13 +42,16 @@ export function Banks() {
   const [editing, setEditing] = useState<Bank | null>(null);
   const [form] = Form.useForm();
 
-  const [members, setMembers] = useState<Member[]>([]);
-  const [memberLoans, setMemberLoans] = useState<Loan[]>([]);
   const [entryOpen, setEntryOpen] = useState(false);
   const [entrySaving, setEntrySaving] = useState(false);
   const [entryForm] = Form.useForm();
-  const entryCategory = Form.useWatch('category', entryForm);
-  const entryMemberId = Form.useWatch('memberId', entryForm);
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txnLoading, setTxnLoading] = useState(true);
+  const [editTxnOpen, setEditTxnOpen] = useState(false);
+  const [editTxnSaving, setEditTxnSaving] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
+  const [editTxnForm] = Form.useForm();
 
   const load = () => {
     setLoading(true);
@@ -48,18 +61,54 @@ export function Banks() {
       .finally(() => setLoading(false));
   };
 
+  const loadTransactions = () => {
+    setTxnLoading(true);
+    return api
+      .get('/transactions', { params: bankFilter ? { bankId: bankFilter } : {} })
+      .then(({ data }) => setTransactions(data.filter((t: Transaction) => t.bankId)))
+      .finally(() => setTxnLoading(false));
+  };
+
   useEffect(() => {
     load();
-    api.get('/members').then(({ data }) => setMembers(data));
   }, []);
 
   useEffect(() => {
-    if (entryCategory === 'LOAN_REPAYMENT' && entryMemberId) {
-      api.get('/loans', { params: { memberId: entryMemberId } }).then(({ data }) => setMemberLoans(data));
-    } else {
-      setMemberLoans([]);
+    loadTransactions();
+  }, [bankFilter]);
+
+  const clearBankFilter = () => setSearchParams({});
+
+  const openEditTxn = (txn: Transaction) => {
+    setEditingTxn(txn);
+    editTxnForm.setFieldsValue({
+      flow: txn.flow,
+      category: txn.category,
+      bankId: txn.bankId ?? undefined,
+      amount: Number(txn.amount),
+      date: dayjs(txn.date),
+      description: txn.description,
+    });
+    setEditTxnOpen(true);
+  };
+
+  const onSubmitEditTxn = async (values: any) => {
+    setEditTxnSaving(true);
+    try {
+      await api.put(`/transactions/${editingTxn!.id}`, { ...values, date: values.date.toISOString() });
+      message.success('Transaction updated');
+      setEditTxnOpen(false);
+      loadTransactions();
+    } finally {
+      setEditTxnSaving(false);
     }
-  }, [entryCategory, entryMemberId]);
+  };
+
+  const onDeleteTxn = async (id: string) => {
+    await api.delete(`/transactions/${id}`);
+    message.success('Transaction deleted');
+    loadTransactions();
+  };
 
   const openAddEntry = () => {
     entryForm.resetFields();
@@ -73,6 +122,7 @@ export function Banks() {
       message.success('Entry added');
       setEntryOpen(false);
       load();
+      loadTransactions();
     } finally {
       setEntrySaving(false);
     }
@@ -180,6 +230,76 @@ export function Banks() {
           },
         ]}
       />
+
+      <Typography.Title level={5} style={{ marginTop: 24, marginBottom: 12 }}>
+        Transactions
+      </Typography.Title>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Filter by bank"
+          style={{ width: 220 }}
+          value={bankFilter}
+          options={banks.map((b) => ({ label: b.name, value: b.id }))}
+          onChange={(value) => setSearchParams(value ? { bankId: value } : {})}
+        />
+        {bankFilter && (
+          <Tag closable onClose={clearBankFilter} color="blue">
+            Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
+          </Tag>
+        )}
+      </Space>
+      <Table
+        rowKey="id"
+        loading={txnLoading}
+        dataSource={transactions}
+        scroll={{ x: 1030 }}
+        columns={[
+          {
+            title: 'Date',
+            dataIndex: 'date',
+            width: 110,
+            render: (d) => dayjs(d).format('DD-MMM-YYYY'),
+          },
+          {
+            title: 'Member',
+            width: 160,
+            ellipsis: true,
+            render: (_, r) => (r.member ? `${r.member.name} (${r.member.memberCode})` : '-'),
+          },
+          { title: 'Bank', width: 140, ellipsis: true, render: (_, r) => r.bank?.name ?? '-' },
+          {
+            title: 'Flow',
+            dataIndex: 'flow',
+            width: 100,
+            render: (f) => <Tag color={f === 'INCOME' ? 'green' : 'red'}>{flowLabel(f)}</Tag>,
+          },
+          { title: 'Category', dataIndex: 'category', width: 130 },
+          {
+            title: 'Amount',
+            dataIndex: 'amount',
+            width: 120,
+            render: (a) => `₹${Number(a).toFixed(2)}`,
+          },
+          { title: 'Description', dataIndex: 'description', width: 180, ellipsis: true },
+          {
+            title: 'Actions',
+            width: 90,
+            fixed: 'right',
+            render: (_, record) => (
+              <Space>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEditTxn(record)} />
+                <Popconfirm title="Delete this transaction?" onConfirm={() => onDeleteTxn(record.id)}>
+                  <Button danger size="small" icon={<DeleteOutlined />} />
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+      />
+
       <Modal
         title={editing ? 'Edit Bank' : 'Add Bank'}
         open={open}
@@ -255,8 +375,26 @@ export function Banks() {
         confirmLoading={entrySaving}
         destroyOnClose
       >
-        <Form form={entryForm} layout="vertical" onFinish={onSubmitEntry} initialValues={{ date: dayjs() }}>
-          <TransactionFormFields form={entryForm} members={members} banks={banks} memberLoans={memberLoans} />
+        <Form
+          form={entryForm}
+          layout="vertical"
+          onFinish={onSubmitEntry}
+          initialValues={{ date: dayjs(), flow: 'INCOME', category: 'SAVING_DEPOSIT' }}
+        >
+          <TransactionFormFields form={entryForm} members={[]} banks={banks} memberLoans={[]} showMember={false} />
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Edit Transaction"
+        open={editTxnOpen}
+        onCancel={() => setEditTxnOpen(false)}
+        onOk={editTxnForm.submit}
+        confirmLoading={editTxnSaving}
+        destroyOnClose
+      >
+        <Form form={editTxnForm} layout="vertical" onFinish={onSubmitEditTxn}>
+          <TransactionFormFields form={editTxnForm} members={[]} banks={banks} memberLoans={[]} showMember={false} />
         </Form>
       </Modal>
     </>

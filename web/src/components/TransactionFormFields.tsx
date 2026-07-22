@@ -2,7 +2,12 @@ import { DatePicker, Form, Input, InputNumber, Select } from 'antd';
 import type { FormInstance } from 'antd';
 import dayjs from 'dayjs';
 import type { Bank, Loan, Member, TxnFlow } from '../types';
-import { CATEGORY_OPTIONS, FLOW_OPTIONS, MEMBER_REQUIRED_CATEGORIES } from '../utils/transactionOptions';
+import {
+  CATEGORY_OPTIONS,
+  FLOW_OPTIONS,
+  LOAN_LINKED_CATEGORIES,
+  MEMBER_REQUIRED_CATEGORIES,
+} from '../utils/transactionOptions';
 
 interface Props {
   form: FormInstance;
@@ -10,12 +15,26 @@ interface Props {
   banks: Bank[];
   memberLoans: Loan[];
   bankRequired?: boolean;
+  showMember?: boolean;
 }
 
-export function TransactionFormFields({ form, members, banks, memberLoans, bankRequired = true }: Props) {
+export function TransactionFormFields({
+  form,
+  members,
+  banks,
+  memberLoans,
+  bankRequired = true,
+  showMember = true,
+}: Props) {
   const flow = Form.useWatch('flow', form);
   const category = Form.useWatch('category', form);
   const memberRequired = MEMBER_REQUIRED_CATEGORIES.includes(category);
+
+  const categoryOptions = flow
+    ? showMember
+      ? CATEGORY_OPTIONS[flow as TxnFlow]
+      : CATEGORY_OPTIONS[flow as TxnFlow].filter((o) => !LOAN_LINKED_CATEGORIES.includes(o.value))
+    : [];
 
   return (
     <>
@@ -23,21 +42,23 @@ export function TransactionFormFields({ form, members, banks, memberLoans, bankR
         <Select options={FLOW_OPTIONS} />
       </Form.Item>
       <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-        <Select options={flow ? CATEGORY_OPTIONS[flow as TxnFlow] : []} disabled={!flow} />
+        <Select options={categoryOptions} disabled={!flow} />
       </Form.Item>
-      <Form.Item
-        name="memberId"
-        label={memberRequired ? 'Member' : 'Member (optional)'}
-        rules={memberRequired ? [{ required: true, message: 'Member is required for this category' }] : []}
-      >
-        <Select
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          options={members.map((m) => ({ label: `${m.name} (${m.memberCode})`, value: m.id }))}
-        />
-      </Form.Item>
-      {category === 'LOAN_REPAYMENT' && (
+      {showMember && (
+        <Form.Item
+          name="memberId"
+          label={memberRequired ? 'Member' : 'Member (optional)'}
+          rules={memberRequired ? [{ required: true, message: 'Member is required for this category' }] : []}
+        >
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            options={members.map((m) => ({ label: `${m.name} (${m.memberCode})`, value: m.id }))}
+          />
+        </Form.Item>
+      )}
+      {showMember && category === 'LOAN_REPAYMENT' && (
         <Form.Item name="linkedLoanId" label="Loan">
           <Select
             options={memberLoans.map((l) => ({

@@ -23,7 +23,13 @@ import dayjs from 'dayjs';
 import { api } from '../api/client';
 import { downloadCsv, parseCsv, toCsv } from '../utils/csv';
 import { TransactionFormFields } from '../components/TransactionFormFields';
+import { CATEGORY_LABELS } from '../utils/transactionOptions';
 import type { Bank, Loan, Member, Transaction } from '../types';
+
+function categoryFilterLabel(categoryParam: string) {
+  const labels = Array.from(new Set(categoryParam.split(',').map((c) => CATEGORY_LABELS[c] ?? c)));
+  return labels.join(' / ');
+}
 
 function RupeeIcon() {
   return <span style={{ fontWeight: 700 }}>₹</span>;
@@ -39,6 +45,7 @@ export function Transactions() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const bankFilter = searchParams.get('bankId') ?? undefined;
+  const categoryFilter = searchParams.get('category') ?? undefined;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,14 +70,19 @@ export function Transactions() {
   const load = () => {
     setLoading(true);
     return api
-      .get('/transactions', { params: bankFilter ? { bankId: bankFilter } : {} })
+      .get('/transactions', {
+        params: {
+          ...(bankFilter ? { bankId: bankFilter } : {}),
+          ...(categoryFilter ? { category: categoryFilter } : {}),
+        },
+      })
       .then(({ data }) => setTransactions(data))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, [bankFilter]);
+  }, [bankFilter, categoryFilter]);
 
   useEffect(() => {
     api.get('/members').then(({ data }) => setMembers(data));
@@ -145,7 +157,17 @@ export function Transactions() {
     }
   };
 
-  const clearBankFilter = () => setSearchParams({});
+  const clearBankFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('bankId');
+    setSearchParams(next);
+  };
+
+  const clearCategoryFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('category');
+    setSearchParams(next);
+  };
 
   const onExport = () => {
     const header = ['Date', 'MemberCode', 'MemberName', 'BankName', 'Flow', 'Category', 'Amount', 'Description'];
@@ -216,6 +238,11 @@ export function Transactions() {
         {bankFilter && (
           <Tag closable onClose={clearBankFilter} color="blue">
             Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
+          </Tag>
+        )}
+        {categoryFilter && (
+          <Tag closable onClose={clearCategoryFilter} color="purple">
+            Category: {categoryFilterLabel(categoryFilter)}
           </Tag>
         )}
       </Space>
