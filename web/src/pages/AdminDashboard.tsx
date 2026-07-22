@@ -1,4 +1,4 @@
-import { Card, Col, List, Modal, Row, Statistic, Typography, theme } from 'antd';
+import { Card, Col, Grid, List, Modal, Row, Statistic, Typography, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -38,6 +38,8 @@ export function AdminDashboard() {
   const [bankLoading, setBankLoading] = useState(false);
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
 
   useEffect(() => {
     api
@@ -73,17 +75,18 @@ export function AdminDashboard() {
     <>
       <Row gutter={[16, 16]}>
         {TILES.map((tile) => (
-          <Col xs={24} sm={12} md={8} lg={6} key={tile.key}>
+          <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
             <Card
+              size={isMobile ? 'small' : 'default'}
               hoverable={tile.key === 'totalBankBalance'}
               onClick={tile.key === 'totalBankBalance' ? onBankBalanceClick : undefined}
             >
               <Statistic
-                title={tile.label}
+                title={isMobile ? <span style={{ fontSize: 12 }}>{tile.label}</span> : tile.label}
                 value={Number(summary?.[tile.key] ?? 0)}
                 precision={2}
                 prefix="₹"
-                valueStyle={{ color: tile.color }}
+                valueStyle={{ color: tile.color, fontSize: isMobile ? 18 : undefined }}
               />
             </Card>
           </Col>
