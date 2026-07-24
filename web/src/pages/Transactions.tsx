@@ -60,6 +60,8 @@ export function Transactions() {
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; errors: { row: number; error: string }[] } | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [form] = Form.useForm();
   const [profitForm] = Form.useForm();
 
@@ -81,6 +83,7 @@ export function Transactions() {
   };
 
   useEffect(() => {
+    setSelectedRowKeys([]);
     load();
   }, [bankFilter, categoryFilter]);
 
@@ -141,6 +144,18 @@ export function Transactions() {
     load();
   };
 
+  const onBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      await Promise.all(selectedRowKeys.map((id) => api.delete(`/transactions/${id}`)));
+      message.success(`${selectedRowKeys.length} transaction(s) deleted`);
+      setSelectedRowKeys([]);
+      load();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const onDistributeProfit = async (values: any) => {
     setDistributing(true);
     try {
@@ -170,7 +185,7 @@ export function Transactions() {
   };
 
   const onExport = () => {
-    const header = ['Date', 'MemberCode', 'MemberName', 'BankName', 'Flow', 'Category', 'Amount', 'Description'];
+    const header = ['Date', 'MemberCode', 'MemberName', 'BankName', 'Flow', 'Category', 'Amount', 'Description', 'LoanId'];
     const rows = transactions.map((t) => [
       dayjs(t.date).format('YYYY-MM-DD'),
       t.member?.memberCode ?? '',
@@ -180,6 +195,7 @@ export function Transactions() {
       t.category,
       t.amount,
       t.description,
+      t.linkedLoanId ?? '',
     ]);
     downloadCsv(`transactions-${dayjs().format('YYYY-MM-DD')}.csv`, toCsv(header, rows));
   };
@@ -198,6 +214,7 @@ export function Transactions() {
         category: r.Category,
         amount: r.Amount,
         description: r.Description,
+        loanId: r.LoanId,
       }));
       const { data } = await api.post('/transactions/import', { rows });
       setImportResult(data);
@@ -235,6 +252,16 @@ export function Transactions() {
         >
           {!isMobile && 'Import CSV'}
         </Button>
+        {selectedRowKeys.length > 0 && (
+          <Popconfirm
+            title={`Delete ${selectedRowKeys.length} selected transaction(s)?`}
+            onConfirm={onBulkDelete}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={bulkDeleting}>
+              {isMobile ? selectedRowKeys.length : `Delete Selected (${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+        )}
         {bankFilter && (
           <Tag closable onClose={clearBankFilter} color="blue">
             Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
@@ -251,6 +278,10 @@ export function Transactions() {
         loading={loading}
         dataSource={transactions}
         scroll={{ x: 1030 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as string[]),
+        }}
         columns={[
           {
             title: 'Date',
@@ -352,11 +383,15 @@ export function Transactions() {
         destroyOnClose
       >
         <Typography.Paragraph>
-          Upload a CSV with columns: <code>Date</code> (YYYY-MM-DD), <code>MemberCode</code> (optional,
-          required for Saving), <code>BankName</code>, <code>Flow</code> (INCOME/EXPENSE or
-          Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit, Expense, Zakat),{' '}
-          <code>Amount</code>, <code>Description</code>. Loan disbursement/repayment rows are not
-          supported by import — add those from the Loans workflow.
+          Upload a CSV with the same columns as Export CSV: <code>Date</code> (YYYY-MM-DD, or
+          DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving
+          and Loan rows), <code>BankName</code> (required except for Saving), <code>Flow</code>{' '}
+          (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit,
+          Expense, Zakat, Loan), <code>Amount</code>, <code>Description</code>,{' '}
+          <code>LoanId</code> (optional — only needed for a loan repayment row when the member has
+          more than one active loan; leave blank otherwise). A Loan-category row with an{' '}
+          <code>EXPENSE</code> flow is treated as a disbursement (creates a new loan); with an{' '}
+          <code>INCOME</code> flow it's a repayment against the member's active loan.
         </Typography.Paragraph>
         <Upload.Dragger
           accept=".csv"

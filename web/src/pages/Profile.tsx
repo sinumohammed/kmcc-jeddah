@@ -96,12 +96,11 @@ export function Profile() {
 
   if (loading || !target) return <Loader />;
 
-  const lifetimeSavings = transactions
-    .filter((t) => t.category === 'SAVING_DEPOSIT')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  const loanBalance = loans.reduce((sum, l) => sum + Number(l.balance), 0);
-  const displayBalance = target.isSavingMember ? lifetimeSavings : target.isLoanMember ? loanBalance : 0;
-  const balanceLabel = target.isLoanMember ? 'Outstanding Loan Balance' : 'Balance';
+  const displayBalance = transactions.reduce(
+    (sum, t) => sum + (t.flow === 'INCOME' ? Number(t.amount) : -Number(t.amount)),
+    0
+  );
+  const balanceLabel = 'Balance';
   const currentYear = dayjs().year();
   const monthlyScheme = target.monthlyAmounts?.find((m) => m.year === currentYear)?.amount;
   const paidMonths = contributions.filter((c) => c.status === 'PAID').length;

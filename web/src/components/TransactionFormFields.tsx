@@ -66,7 +66,7 @@ export function TransactionFormFields({
         </Form.Item>
       )}
       {showMember && category === 'LOAN_REPAYMENT' && (
-        <Form.Item name="linkedLoanId" label="Loan">
+        <Form.Item name="linkedLoanId" label="Loan" rules={[{ required: true, message: 'Select which loan this repayment applies to' }]}>
           <Select
             options={memberLoans.map((l) => ({
               label: `₹${l.principalAmount} on ${dayjs(l.disbursedDate).format('DD-MMM-YYYY')} (balance ₹${l.balance})`,
