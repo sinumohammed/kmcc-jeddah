@@ -41,6 +41,7 @@ export interface Bank {
 export type TxnFlow = 'INCOME' | 'EXPENSE';
 export type TxnCategory =
   | 'SAVING_DEPOSIT'
+  | 'SAVING_WITHDRAWAL'
   | 'INTEREST'
   | 'PROFIT'
   | 'LOAN_DISBURSEMENT'

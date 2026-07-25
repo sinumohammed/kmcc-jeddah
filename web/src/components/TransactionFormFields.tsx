@@ -5,7 +5,7 @@ import type { Bank, Loan, Member, TxnFlow } from '../types';
 import {
   CATEGORY_OPTIONS,
   FLOW_OPTIONS,
-  LOAN_LINKED_CATEGORIES,
+  NO_PICKER_CATEGORIES,
   MEMBER_REQUIRED_CATEGORIES,
 } from '../utils/transactionOptions';
 
@@ -16,11 +16,12 @@ interface Props {
   memberLoans: Loan[];
   bankRequired?: boolean;
   showMember?: boolean;
-  // Only meaningful when showMember is false. Excludes LOAN_DISBURSEMENT/LOAN_REPAYMENT from
-  // the Category dropdown — needed when *creating* a bank-only entry (no member field to
+  // Only meaningful when showMember is false. Excludes every member-required-with-no-picker
+  // category (LOAN_DISBURSEMENT/LOAN_REPAYMENT/SAVING_WITHDRAWAL, see NO_PICKER_CATEGORIES)
+  // from the Category dropdown — needed when *creating* a bank-only entry (no member field to
   // satisfy their member requirement), but must stay false when *editing* an existing
-  // transaction: an existing loan-linked row's category wouldn't match any option in a
-  // filtered list, leaving the Select showing a blank/unmatched value.
+  // transaction: an existing such row's category wouldn't match any option in a filtered list,
+  // leaving the Select showing a blank/unmatched value.
   restrictLoanCategories?: boolean;
 }
 
@@ -39,7 +40,7 @@ export function TransactionFormFields({
 
   const categoryOptions = flow
     ? restrictLoanCategories
-      ? CATEGORY_OPTIONS[flow as TxnFlow].filter((o) => !LOAN_LINKED_CATEGORIES.includes(o.value))
+      ? CATEGORY_OPTIONS[flow as TxnFlow].filter((o) => !NO_PICKER_CATEGORIES.includes(o.value))
       : CATEGORY_OPTIONS[flow as TxnFlow]
     : [];
 

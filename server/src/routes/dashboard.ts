@@ -15,13 +15,15 @@ async function sumByCategory(category: string) {
 }
 
 router.get('/summary', async (_req, res) => {
-  const [totalSavings, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
+  const [totalDeposits, totalWithdrawals, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
     sumByCategory('SAVING_DEPOSIT'),
+    sumByCategory('SAVING_WITHDRAWAL'),
     sumByCategory('PROFIT'),
     sumByCategory('INTEREST'),
     sumByCategory('EXPENSE'),
     sumByCategory('ZAKAT'),
   ]);
+  const totalSavings = totalDeposits.minus(totalWithdrawals);
 
   const [incomeTotal, expenseTotal] = await Promise.all([
     prisma.transaction.aggregate({ where: { flow: 'INCOME' }, _sum: { amount: true } }),

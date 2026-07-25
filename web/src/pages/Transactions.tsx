@@ -466,10 +466,11 @@ export function Transactions() {
           <>
             <Typography.Paragraph>
               Upload a CSV with the same columns as Export CSV: <code>Date</code> (YYYY-MM-DD, or
-              DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving
-              and Loan rows), <code>BankName</code> (required except for Saving), <code>Flow</code>{' '}
-              (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit,
-              Expense, Zakat, Loan), <code>Amount</code>, <code>Description</code>,{' '}
+              DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving,
+              Savings Withdrawal, and Loan rows), <code>BankName</code> (required except for Saving),{' '}
+              <code>Flow</code> (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving,
+              Savings Withdrawal, Interest, Profit, Expense, Zakat, Loan),{' '}
+              <code>Amount</code>, <code>Description</code>,{' '}
               <code>LoanId</code> (optional — only needed for a loan repayment row when the member has
               more than one active loan; leave blank otherwise). A Loan-category row with an{' '}
               <code>EXPENSE</code> flow is treated as a disbursement (creates a new loan); with an{' '}

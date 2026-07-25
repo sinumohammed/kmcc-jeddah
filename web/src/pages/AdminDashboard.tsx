@@ -7,7 +7,12 @@ import { Loader } from '../components/Loader';
 import type { BankSummary, DashboardSummary, MembersSummary } from '../types';
 
 const TILES: { key: keyof DashboardSummary; label: string; color: string; category?: string }[] = [
-  { key: 'totalSavingsAmount', label: 'Total Savings Amount', color: '#0f3460', category: 'SAVING_DEPOSIT' },
+  {
+    key: 'totalSavingsAmount',
+    label: 'Total Savings Amount',
+    color: '#0f3460',
+    category: 'SAVING_DEPOSIT,SAVING_WITHDRAWAL',
+  },
   {
     key: 'totalLoanAmount',
     label: 'Total Loan Amount',

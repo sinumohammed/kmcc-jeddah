@@ -57,8 +57,9 @@ router.post('/', requireAdmin, async (req, res) => {
   // bank-only entry form (no member picker) also posts SAVING_DEPOSIT rows to record the
   // bank-side half of a deposit that was entered without a bank — so it's not hard-enforced
   // here. LOAN_DISBURSEMENT/LOAN_REPAYMENT always tie to a specific Loan and stay required.
-  const loanLinkedCategories = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
-  if (loanLinkedCategories.includes(category) && !memberId) {
+  // SAVING_WITHDRAWAL always debits one member's savings, so it's required too.
+  const memberLinkedCategories = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT', 'SAVING_WITHDRAWAL'];
+  if (memberLinkedCategories.includes(category) && !memberId) {
     return res.status(400).json({ error: 'A member must be selected for this category' });
   }
   if (category === 'LOAN_REPAYMENT' && !linkedLoanId) {
@@ -229,6 +230,7 @@ router.post('/profit-distribution', requireAdmin, async (req, res) => {
 // more than one active loan; otherwise we fall back to their single active loan.
 const IMPORTABLE_CATEGORIES = new Set([
   'SAVING_DEPOSIT',
+  'SAVING_WITHDRAWAL',
   'INTEREST',
   'PROFIT',
   'EXPENSE',
@@ -240,6 +242,8 @@ const CATEGORY_ALIASES: Record<string, string> = {
   SAVING: 'SAVING_DEPOSIT',
   SAVINGS: 'SAVING_DEPOSIT',
   DEPOSIT: 'SAVING_DEPOSIT',
+  'SAVINGS WITHDRAWAL': 'SAVING_WITHDRAWAL',
+  'SAVING WITHDRAWAL': 'SAVING_WITHDRAWAL',
   LOAN: 'LOAN_REPAYMENT',
 };
 const FLOW_ALIASES: Record<string, string> = {
@@ -284,7 +288,7 @@ router.post('/import', requireAdmin, async (req, res) => {
   const members = await prisma.member.findMany();
   const memberByCode = new Map(members.map((m) => [m.memberCode.trim().toUpperCase(), m]));
 
-  const memberRequiredCategories = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
+  const memberRequiredCategories = ['SAVING_DEPOSIT', 'SAVING_WITHDRAWAL', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
   const affectedMemberIds = new Set<string>();
   const errors: { row: number; error: string }[] = [];
   const preview: any[] = [];

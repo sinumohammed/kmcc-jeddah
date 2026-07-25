@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TxnCategory" ADD VALUE 'SAVING_WITHDRAWAL';
