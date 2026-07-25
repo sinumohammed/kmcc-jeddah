@@ -6,6 +6,7 @@ import {
   allocateDepositToContributions,
   recalculateAllContributions,
 } from '../lib/contributions';
+import { resolveDisbursementLoan, recalculateLoan } from '../lib/loans';
 import { Decimal } from '.prisma/client/runtime/library';
 
 const router = Router();
@@ -64,20 +65,12 @@ router.post('/', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'A loan must be selected for a loan repayment' });
   }
 
-  // LOAN_DISBURSEMENT has no "existing loan" to link to (unlike LOAN_REPAYMENT) — every
-  // disbursement creates a brand new Loan record, mirroring POST /loans, so that
-  // Loan.balance (and the dashboard's Total Loan Amount, which sums it) reflects entries
-  // made from this generic form the same as ones made through the dedicated loan flow.
+  // LOAN_DISBURSEMENT has no "existing loan" to link to (unlike LOAN_REPAYMENT) — a member
+  // has at most one ACTIVE loan at a time, so this tops up their existing active loan if
+  // they have one, or creates a brand new Loan record if not (see resolveDisbursementLoan).
   let resolvedLinkedLoanId = linkedLoanId || null;
   if (category === 'LOAN_DISBURSEMENT' && memberId) {
-    const loan = await prisma.loan.create({
-      data: {
-        memberId,
-        principalAmount: amount,
-        disbursedDate: new Date(date),
-        balance: amount,
-      },
-    });
+    const loan = await resolveDisbursementLoan(memberId, amount, new Date(date));
     resolvedLinkedLoanId = loan.id;
   }
 
@@ -141,6 +134,15 @@ router.put('/:id', requireAdmin, async (req, res) => {
     await recalculateAllContributions(memberId);
   }
 
+  // An edited amount/category on a loan-linked transaction (e.g. correcting a repayment
+  // amount) must be reflected back onto the Loan it's tied to, not just the transaction row.
+  const affectedLoanIds = new Set<string>();
+  if (before.linkedLoanId) affectedLoanIds.add(before.linkedLoanId);
+  if (txn.linkedLoanId) affectedLoanIds.add(txn.linkedLoanId);
+  for (const loanId of affectedLoanIds) {
+    await recalculateLoan(loanId);
+  }
+
   res.json(txn);
 });
 
@@ -150,6 +152,12 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
   if (txn.category === 'SAVING_DEPOSIT' && txn.memberId) {
     await recalculateAllContributions(txn.memberId);
+  }
+
+  // Deleting a LOAN_DISBURSEMENT/LOAN_REPAYMENT must un-apply its effect on the Loan it's
+  // linked to (previously this silently left orphaned/stale Loan rows behind).
+  if (txn.linkedLoanId) {
+    await recalculateLoan(txn.linkedLoanId);
   }
 
   res.status(204).send();
@@ -261,8 +269,12 @@ function parseImportDate(raw: string): Date | null {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
 
+// dryRun:true validates every row and reports what each row would do (including
+// which loan a LOAN_REPAYMENT would hit) without writing anything to the DB, so the
+// frontend can render an import preview and let the admin resolve ambiguous rows
+// (a member with multiple active loans) by picking a LoanId before committing.
 router.post('/import', requireAdmin, async (req, res) => {
-  const { rows } = req.body ?? {};
+  const { rows, dryRun } = req.body ?? {};
   if (!Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'rows array is required' });
   }
@@ -275,10 +287,30 @@ router.post('/import', requireAdmin, async (req, res) => {
   const memberRequiredCategories = ['SAVING_DEPOSIT', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
   const affectedMemberIds = new Set<string>();
   const errors: { row: number; error: string }[] = [];
+  const preview: any[] = [];
   let created = 0;
 
-  for (let i = 0; i < rows.length; i++) {
+  // dryRun never writes to the DB, so a disbursement earlier in the batch isn't visible to
+  // prisma queries a later repayment row makes — this tracks each member's resulting active
+  // loan (balance + label) across the simulated batch so the preview matches what the live
+  // run (which does write row-by-row) will actually do.
+  const virtualLoans = new Map<string, { id: string; balance: Decimal; label: string }>();
+
+  // Process LOAN_DISBURSEMENT rows before everything else, regardless of their position in
+  // the sheet, so a disbursement + same-batch repayment for the same member works no matter
+  // which row comes first in the CSV (Array#sort is stable, so relative order is otherwise
+  // preserved). Results are keyed by original row number so output ordering is unaffected.
+  const processingOrder = rows.map((_: any, i: number) => i).sort((a: number, b: number) => {
+    const rank = (idx: number) => {
+      const raw = String(rows[idx]?.category ?? '').trim().toUpperCase();
+      return (CATEGORY_ALIASES[raw] ?? raw) === 'LOAN_REPAYMENT' ? 1 : 0;
+    };
+    return rank(a) - rank(b);
+  });
+
+  for (const i of processingOrder) {
     const r = rows[i] ?? {};
+    const rowNum = i + 1;
     try {
       const flowRaw = String(r.flow ?? '').trim().toUpperCase();
       const flow = FLOW_ALIASES[flowRaw] ?? flowRaw;
@@ -314,37 +346,100 @@ router.post('/import', requireAdmin, async (req, res) => {
         throw new Error(`Member is required for category ${category}`);
       }
 
+      const summary = {
+        row: rowNum,
+        memberCode: member?.memberCode ?? '',
+        memberName: member?.name ?? '',
+        bankName: bank?.name ?? '',
+        flow,
+        category,
+        amount,
+        date: date.toISOString(),
+        description: String(r.description ?? ''),
+      };
+
       let linkedLoanId: string | null = null;
+      let loanNote = '';
       if (category === 'LOAN_DISBURSEMENT' && member) {
-        const loan = await prisma.loan.create({
-          data: { memberId: member.id, principalAmount: amount, disbursedDate: date, balance: amount },
-        });
-        linkedLoanId = loan.id;
+        if (dryRun) {
+          const virtual = virtualLoans.get(member.id);
+          if (virtual) {
+            virtual.balance = virtual.balance.plus(amount);
+            loanNote = `Tops up ${virtual.label} (running balance ₹${virtual.balance})`;
+          } else {
+            const existingActive = await prisma.loan.findFirst({
+              where: { memberId: member.id, status: 'ACTIVE' },
+            });
+            if (existingActive) {
+              const newBalance = new Decimal(existingActive.balance).plus(amount);
+              const label = `loan ${existingActive.id.slice(-6)}`;
+              virtualLoans.set(member.id, { id: existingActive.id, balance: newBalance, label });
+              loanNote = `Tops up existing ${label} (balance ₹${existingActive.balance} → ₹${newBalance})`;
+            } else {
+              virtualLoans.set(member.id, { id: 'new', balance: new Decimal(amount), label: 'the new loan created earlier in this import' });
+              loanNote = 'Creates a new loan';
+            }
+          }
+        } else {
+          const loan = await resolveDisbursementLoan(member.id, amount, date);
+          linkedLoanId = loan.id;
+        }
       }
       if (category === 'LOAN_REPAYMENT' && member) {
         const loanIdRaw = String(r.loanId ?? '').trim();
-        let loan;
+        let loan: { id: string; balance: Decimal | string | number };
         if (loanIdRaw) {
-          loan = await prisma.loan.findFirst({ where: { id: loanIdRaw, memberId: member.id } });
-          if (!loan) throw new Error(`Loan "${loanIdRaw}" not found for member ${memberCode}`);
+          const found = await prisma.loan.findFirst({ where: { id: loanIdRaw, memberId: member.id } });
+          if (!found) throw new Error(`Loan "${loanIdRaw}" not found for member ${memberCode}`);
+          loan = found;
         } else {
-          const activeLoans = await prisma.loan.findMany({
-            where: { memberId: member.id, status: 'ACTIVE' },
-          });
-          if (activeLoans.length === 0) throw new Error(`No active loan found for member ${memberCode}`);
-          if (activeLoans.length > 1) {
-            throw new Error(
-              `Member ${memberCode} has multiple active loans; include a LoanId column to disambiguate`
-            );
+          const virtual = virtualLoans.get(member.id);
+          if (virtual) {
+            loan = virtual;
+          } else {
+            const activeLoans = await prisma.loan.findMany({
+              where: { memberId: member.id, status: 'ACTIVE' },
+              orderBy: { disbursedDate: 'asc' },
+            });
+            if (activeLoans.length === 0) throw new Error(`No active loan found for member ${memberCode}`);
+            if (activeLoans.length > 1) {
+              if (dryRun) {
+                preview.push({
+                  ...summary,
+                  status: 'needsLoanId',
+                  candidates: activeLoans.map((l) => ({
+                    id: l.id,
+                    balance: l.balance,
+                    disbursedDate: l.disbursedDate,
+                  })),
+                });
+                continue;
+              }
+              throw new Error(
+                `Member ${memberCode} has multiple active loans; include a LoanId column to disambiguate`
+              );
+            }
+            loan = activeLoans[0];
           }
-          loan = activeLoans[0];
         }
-        const newBalance = new Decimal(loan.balance).minus(amount);
-        await prisma.loan.update({
-          where: { id: loan.id },
-          data: { balance: newBalance.lt(0) ? 0 : newBalance, status: newBalance.lte(0) ? 'CLOSED' : 'ACTIVE' },
-        });
-        linkedLoanId = loan.id;
+        if (dryRun) {
+          const label = virtualLoans.get(member.id)?.label ?? `loan ${loan.id.slice(-6)}`;
+          loanNote = `Repays ${label} (balance ₹${loan.balance})`;
+          const newVirtualBalance = Decimal.max(0, new Decimal(loan.balance).minus(amount));
+          virtualLoans.set(member.id, { id: loan.id, balance: newVirtualBalance, label });
+        } else {
+          const newBalance = new Decimal(loan.balance).minus(amount);
+          await prisma.loan.update({
+            where: { id: loan.id },
+            data: { balance: newBalance.lt(0) ? 0 : newBalance, status: newBalance.lte(0) ? 'CLOSED' : 'ACTIVE' },
+          });
+          linkedLoanId = loan.id;
+        }
+      }
+
+      if (dryRun) {
+        preview.push({ ...summary, status: 'ok', loanNote });
+        continue;
       }
 
       await prisma.transaction.create({
@@ -364,14 +459,24 @@ router.post('/import', requireAdmin, async (req, res) => {
       if (category === 'SAVING_DEPOSIT' && member) affectedMemberIds.add(member.id);
       created++;
     } catch (e: any) {
-      errors.push({ row: i + 1, error: e.message ?? 'Unknown error' });
+      if (dryRun) {
+        preview.push({ row: rowNum, status: 'error', error: e.message ?? 'Unknown error' });
+      } else {
+        errors.push({ row: rowNum, error: e.message ?? 'Unknown error' });
+      }
     }
+  }
+
+  if (dryRun) {
+    preview.sort((a, b) => a.row - b.row);
+    return res.json({ preview });
   }
 
   for (const memberId of affectedMemberIds) {
     await recalculateAllContributions(memberId);
   }
 
+  errors.sort((a, b) => a.row - b.row);
   res.status(201).json({ created, errors });
 });
 

@@ -39,6 +39,35 @@ function flowLabel(flow: string) {
   return flow === 'INCOME' ? 'Deposit' : 'Withdrawal';
 }
 
+type ImportRow = {
+  date: string;
+  memberCode: string;
+  bankName: string;
+  flow: string;
+  category: string;
+  amount: string;
+  description: string;
+  loanId: string;
+};
+
+type LoanCandidate = { id: string; balance: string | number; disbursedDate: string };
+
+type PreviewRow = {
+  row: number;
+  status: 'ok' | 'error' | 'needsLoanId';
+  memberCode?: string;
+  memberName?: string;
+  bankName?: string;
+  flow?: string;
+  category?: string;
+  amount?: number;
+  date?: string;
+  description?: string;
+  loanNote?: string;
+  error?: string;
+  candidates?: LoanCandidate[];
+};
+
 export function Transactions() {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.sm;
@@ -60,6 +89,10 @@ export function Transactions() {
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; errors: { row: number; error: string }[] } | null>(null);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importPreview, setImportPreview] = useState<PreviewRow[] | null>(null);
+  const [loanSelections, setLoanSelections] = useState<Record<number, string>>({});
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [form] = Form.useForm();
@@ -200,13 +233,20 @@ export function Transactions() {
     downloadCsv(`transactions-${dayjs().format('YYYY-MM-DD')}.csv`, toCsv(header, rows));
   };
 
-  const onImportFile = async (file: File) => {
-    setImporting(true);
+  const resetImportState = () => {
+    setImportRows([]);
+    setImportPreview(null);
+    setLoanSelections({});
     setImportResult(null);
+  };
+
+  const onImportFile = async (file: File) => {
+    setPreviewLoading(true);
+    resetImportState();
     try {
       const text = await file.text();
       const parsed = parseCsv(text);
-      const rows = parsed.map((r) => ({
+      const rows: ImportRow[] = parsed.map((r) => ({
         date: r.Date,
         memberCode: r.MemberCode,
         bankName: r.BankName,
@@ -216,8 +256,27 @@ export function Transactions() {
         description: r.Description,
         loanId: r.LoanId,
       }));
+      setImportRows(rows);
+      const { data } = await api.post('/transactions/import', { rows, dryRun: true });
+      setImportPreview(data.preview);
+    } catch (e: any) {
+      message.error(e.response?.data?.error ?? 'Failed to preview file');
+    } finally {
+      setPreviewLoading(false);
+    }
+    return false;
+  };
+
+  const onConfirmImport = async () => {
+    setImporting(true);
+    try {
+      const rows = importRows.map((r, idx) => {
+        const selected = loanSelections[idx + 1];
+        return selected ? { ...r, loanId: selected } : r;
+      });
       const { data } = await api.post('/transactions/import', { rows });
       setImportResult(data);
+      setImportPreview(null);
       if (data.created > 0) {
         message.success(`Imported ${data.created} transaction(s)`);
         load();
@@ -227,7 +286,6 @@ export function Transactions() {
     } finally {
       setImporting(false);
     }
-    return false;
   };
 
   return (
@@ -246,7 +304,7 @@ export function Transactions() {
           icon={<UploadOutlined />}
           title="Import CSV"
           onClick={() => {
-            setImportResult(null);
+            resetImportState();
             setImportOpen(true);
           }}
         >
@@ -377,37 +435,130 @@ export function Transactions() {
         title="Import Transactions"
         open={importOpen}
         onCancel={() => setImportOpen(false)}
+        width={importPreview && !importResult ? 900 : 520}
         footer={
-          <Button onClick={() => setImportOpen(false)}>Close</Button>
+          importPreview && !importResult ? (
+            <Space>
+              <Button onClick={resetImportState}>Back</Button>
+              <Button
+                type="primary"
+                loading={importing}
+                disabled={importPreview.every((p) => p.status !== 'ok') || importPreview.some((p) => p.status === 'needsLoanId' && !loanSelections[p.row])}
+                onClick={onConfirmImport}
+              >
+                Confirm Import ({importPreview.filter((p) => p.status === 'ok').length} row(s))
+              </Button>
+            </Space>
+          ) : importResult ? (
+            <Space>
+              <Button onClick={resetImportState}>Import Another File</Button>
+              <Button type="primary" onClick={() => setImportOpen(false)}>
+                Close
+              </Button>
+            </Space>
+          ) : (
+            <Button onClick={() => setImportOpen(false)}>Close</Button>
+          )
         }
         destroyOnClose
       >
-        <Typography.Paragraph>
-          Upload a CSV with the same columns as Export CSV: <code>Date</code> (YYYY-MM-DD, or
-          DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving
-          and Loan rows), <code>BankName</code> (required except for Saving), <code>Flow</code>{' '}
-          (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit,
-          Expense, Zakat, Loan), <code>Amount</code>, <code>Description</code>,{' '}
-          <code>LoanId</code> (optional — only needed for a loan repayment row when the member has
-          more than one active loan; leave blank otherwise). A Loan-category row with an{' '}
-          <code>EXPENSE</code> flow is treated as a disbursement (creates a new loan); with an{' '}
-          <code>INCOME</code> flow it's a repayment against the member's active loan.
-        </Typography.Paragraph>
-        <Upload.Dragger
-          accept=".csv"
-          multiple={false}
-          showUploadList={false}
-          disabled={importing}
-          beforeUpload={onImportFile}
-        >
-          <p className="ant-upload-drag-icon">
-            <UploadOutlined />
-          </p>
-          <p className="ant-upload-text">Click or drag a CSV file here to import</p>
-        </Upload.Dragger>
+        {!importPreview && !importResult && (
+          <>
+            <Typography.Paragraph>
+              Upload a CSV with the same columns as Export CSV: <code>Date</code> (YYYY-MM-DD, or
+              DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving
+              and Loan rows), <code>BankName</code> (required except for Saving), <code>Flow</code>{' '}
+              (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit,
+              Expense, Zakat, Loan), <code>Amount</code>, <code>Description</code>,{' '}
+              <code>LoanId</code> (optional — only needed for a loan repayment row when the member has
+              more than one active loan; leave blank otherwise). A Loan-category row with an{' '}
+              <code>EXPENSE</code> flow is treated as a disbursement (creates a new loan); with an{' '}
+              <code>INCOME</code> flow it's a repayment against the member's active loan. You'll get a
+              preview to check before anything is saved.
+            </Typography.Paragraph>
+            <Upload.Dragger
+              accept=".csv"
+              multiple={false}
+              showUploadList={false}
+              disabled={previewLoading}
+              beforeUpload={onImportFile}
+            >
+              <p className="ant-upload-drag-icon">
+                <UploadOutlined />
+              </p>
+              <p className="ant-upload-text">
+                {previewLoading ? 'Reading file…' : 'Click or drag a CSV file here to import'}
+              </p>
+            </Upload.Dragger>
+          </>
+        )}
+
+        {importPreview && !importResult && (
+          <>
+            <Alert
+              style={{ marginBottom: 12 }}
+              type={importPreview.some((p) => p.status !== 'ok') ? 'warning' : 'success'}
+              showIcon
+              message={`${importPreview.filter((p) => p.status === 'ok').length} of ${importPreview.length} row(s) ready to import`}
+              description="Rows with errors will be skipped. Rows needing a loan selection must be resolved before importing."
+            />
+            <Table
+              size="small"
+              rowKey="row"
+              dataSource={importPreview}
+              pagination={false}
+              scroll={{ y: 360 }}
+              columns={[
+                { title: 'Row', dataIndex: 'row', width: 55 },
+                {
+                  title: 'Member',
+                  width: 150,
+                  render: (_, p) => (p.memberName ? `${p.memberName} (${p.memberCode})` : '-'),
+                },
+                { title: 'Bank', dataIndex: 'bankName', width: 130, render: (v) => v || '-' },
+                {
+                  title: 'Flow',
+                  dataIndex: 'flow',
+                  width: 90,
+                  render: (v) => (v ? <Tag color={v === 'INCOME' ? 'green' : 'red'}>{flowLabel(v)}</Tag> : '-'),
+                },
+                { title: 'Category', dataIndex: 'category', width: 120 },
+                { title: 'Amount', dataIndex: 'amount', width: 90, render: (v) => (v != null ? `₹${v}` : '-') },
+                {
+                  title: 'Status',
+                  width: 260,
+                  render: (_, p) => {
+                    if (p.status === 'ok') {
+                      return <Tag color="green">{p.loanNote || 'OK'}</Tag>;
+                    }
+                    if (p.status === 'error') {
+                      return <Tag color="red">{p.error}</Tag>;
+                    }
+                    return (
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Tag color="orange">Multiple active loans — pick one</Tag>
+                        <Select
+                          size="small"
+                          style={{ width: '100%' }}
+                          placeholder="Select loan to repay"
+                          value={loanSelections[p.row]}
+                          onChange={(val) => setLoanSelections((prev) => ({ ...prev, [p.row]: val }))}
+                          options={(p.candidates ?? []).map((c) => ({
+                            label: `${c.id.slice(-6)} — balance ₹${c.balance} (disbursed ${dayjs(c.disbursedDate).format('DD-MMM-YYYY')})`,
+                            value: c.id,
+                          }))}
+                        />
+                      </Space>
+                    );
+                  },
+                },
+              ]}
+            />
+          </>
+        )}
 
         {importResult && (
-          <div style={{ marginTop: 16 }}>
+          <div>
             <Alert
               type={importResult.errors.length === 0 ? 'success' : 'warning'}
               showIcon
