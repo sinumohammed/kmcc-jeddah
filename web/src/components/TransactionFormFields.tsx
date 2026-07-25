@@ -89,7 +89,7 @@ export function TransactionFormFields({
         <Select allowClear={!bankRequired} options={banks.map((b) => ({ label: b.name, value: b.id }))} />
       </Form.Item>
       <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
-        <InputNumber style={{ width: '100%' }} min={0.01} />
+        <InputNumber style={{ width: '100%' }} min={0} />
       </Form.Item>
       <Form.Item name="date" label="Date" rules={[{ required: true }]}>
         <DatePicker style={{ width: '100%' }} />

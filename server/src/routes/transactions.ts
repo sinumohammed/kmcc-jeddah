@@ -46,8 +46,8 @@ router.post('/', requireAdmin, async (req, res) => {
   const { memberId, bankId, date, description, flow, category, amount, linkedLoanId } =
     req.body ?? {};
 
-  if (!date || !flow || !category || !amount) {
-    return res.status(400).json({ error: 'date, flow, category and amount are required' });
+  if (!date || !flow || !category || amount === undefined || amount === null || amount < 0) {
+    return res.status(400).json({ error: 'date, flow, category and amount (0 or more) are required' });
   }
   if (category !== 'SAVING_DEPOSIT' && !bankId) {
     return res.status(400).json({ error: 'bankId is required for this category' });
@@ -334,8 +334,9 @@ router.post('/import', requireAdmin, async (req, res) => {
         throw new Error(`Bank is required for category ${category}`);
       }
 
-      const amount = Number(r.amount);
-      if (!amount || amount <= 0) throw new Error(`Invalid amount "${r.amount}"`);
+      const amountRaw = String(r.amount ?? '').trim();
+      const amount = Number(amountRaw);
+      if (!amountRaw || Number.isNaN(amount) || amount < 0) throw new Error(`Invalid amount "${r.amount}"`);
 
       const date = parseImportDate(r.date);
       if (!date) throw new Error(`Invalid date "${r.date}"`);

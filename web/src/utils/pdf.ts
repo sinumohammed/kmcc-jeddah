@@ -114,12 +114,13 @@ export async function downloadMemberStatementPdf(member: Member, transactions: T
   let totalCredit = 0;
   let totalDebit = 0;
   const rows = sorted.map((t, i) => {
-    const credit = t.flow === 'INCOME' ? Number(t.amount) : 0;
-    const debit = t.flow === 'EXPENSE' ? Number(t.amount) : 0;
+    const isCredit = t.flow === 'INCOME';
+    const credit = isCredit ? Number(t.amount) : 0;
+    const debit = !isCredit ? Number(t.amount) : 0;
     running += credit - debit;
     totalCredit += credit;
     totalDebit += debit;
-    return { id: i + 1, date: t.date, narration: t.description, credit, debit, balance: running };
+    return { id: i + 1, date: t.date, narration: t.description, isCredit, credit, debit, balance: running };
   });
   const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
 
@@ -183,8 +184,8 @@ export async function downloadMemberStatementPdf(member: Member, transactions: T
           (r, i) => `<tr style="background: ${i % 2 === 1 ? '#f7f9fb' : '#fff'};">
             ${cell(String(r.id))}${cell(dayjs(r.date).format('DD/MM/YYYY'))}${cell(r.narration, {
               align: 'left',
-            })}${cell(r.credit ? r.credit.toFixed(2) : '-', { align: 'right' })}${cell(
-              r.debit ? r.debit.toFixed(2) : '-',
+            })}${cell(r.isCredit ? r.credit.toFixed(2) : '-', { align: 'right' })}${cell(
+              !r.isCredit ? r.debit.toFixed(2) : '-',
               { align: 'right' }
             )}${cell(r.balance.toFixed(2), { align: 'right', bold: true })}
           </tr>`
