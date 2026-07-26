@@ -26,11 +26,6 @@ import { TransactionFormFields } from '../components/TransactionFormFields';
 import { CATEGORY_LABELS } from '../utils/transactionOptions';
 import type { Bank, Loan, Member, Transaction } from '../types';
 
-function categoryFilterLabel(categoryParam: string) {
-  const labels = Array.from(new Set(categoryParam.split(',').map((c) => CATEGORY_LABELS[c] ?? c)));
-  return labels.join(' / ');
-}
-
 function RupeeIcon() {
   return <span style={{ fontWeight: 700 }}>₹</span>;
 }
@@ -75,6 +70,11 @@ export function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const bankFilter = searchParams.get('bankId') ?? undefined;
   const categoryFilter = searchParams.get('category') ?? undefined;
+  const categoryValues = categoryFilter ? categoryFilter.split(',') : [];
+  const flowFilter = searchParams.get('flow') ?? undefined;
+  const memberFilter = searchParams.get('memberId') ?? undefined;
+  const dateFromFilter = searchParams.get('from') ?? undefined;
+  const dateToFilter = searchParams.get('to') ?? undefined;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +109,10 @@ export function Transactions() {
         params: {
           ...(bankFilter ? { bankId: bankFilter } : {}),
           ...(categoryFilter ? { category: categoryFilter } : {}),
+          ...(flowFilter ? { flow: flowFilter } : {}),
+          ...(memberFilter ? { memberId: memberFilter } : {}),
+          ...(dateFromFilter ? { from: dateFromFilter } : {}),
+          ...(dateToFilter ? { to: dateToFilter } : {}),
         },
       })
       .then(({ data }) => setTransactions(data))
@@ -118,7 +122,7 @@ export function Transactions() {
   useEffect(() => {
     setSelectedRowKeys([]);
     load();
-  }, [bankFilter, categoryFilter]);
+  }, [bankFilter, categoryFilter, flowFilter, memberFilter, dateFromFilter, dateToFilter]);
 
   useEffect(() => {
     api.get('/members').then(({ data }) => setMembers(data));
@@ -211,9 +215,22 @@ export function Transactions() {
     setSearchParams(next);
   };
 
-  const clearCategoryFilter = () => {
+  const setFilterParam = (key: string, value: string | undefined) => {
     const next = new URLSearchParams(searchParams);
-    next.delete('category');
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next);
+  };
+
+  const onDateRangeChange = (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (dates && dates[0] && dates[1]) {
+      next.set('from', dates[0].startOf('day').toISOString());
+      next.set('to', dates[1].endOf('day').toISOString());
+    } else {
+      next.delete('from');
+      next.delete('to');
+    }
     setSearchParams(next);
   };
 
@@ -325,11 +342,44 @@ export function Transactions() {
             Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
           </Tag>
         )}
-        {categoryFilter && (
-          <Tag closable onClose={clearCategoryFilter} color="purple">
-            Category: {categoryFilterLabel(categoryFilter)}
-          </Tag>
-        )}
+      </Space>
+      <Space style={{ marginBottom: 16, width: isMobile ? '100%' : undefined }} wrap>
+        <Select
+          allowClear
+          placeholder="All Flows"
+          style={{ width: isMobile ? '100%' : 160 }}
+          value={flowFilter}
+          options={[
+            { label: 'Deposit', value: 'INCOME' },
+            { label: 'Withdrawal', value: 'EXPENSE' },
+          ]}
+          onChange={(value) => setFilterParam('flow', value)}
+        />
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="All Members"
+          style={{ width: isMobile ? '100%' : 240 }}
+          value={memberFilter}
+          options={members.map((m) => ({ label: `${m.name} (${m.memberCode})`, value: m.id }))}
+          onChange={(value) => setFilterParam('memberId', value)}
+        />
+        <Select
+          allowClear
+          mode="multiple"
+          maxTagCount="responsive"
+          placeholder="All Categories"
+          style={{ width: isMobile ? '100%' : 240 }}
+          value={categoryValues}
+          options={Object.keys(CATEGORY_LABELS).map((c) => ({ label: CATEGORY_LABELS[c], value: c }))}
+          onChange={(values: string[]) => setFilterParam('category', values.length ? values.join(',') : undefined)}
+        />
+        <DatePicker.RangePicker
+          style={isMobile ? { width: '100%' } : undefined}
+          value={dateFromFilter && dateToFilter ? [dayjs(dateFromFilter), dayjs(dateToFilter)] : null}
+          onChange={onDateRangeChange}
+        />
       </Space>
       <Table
         rowKey="id"

@@ -86,6 +86,8 @@ export function Banks() {
   const [editTxnSaving, setEditTxnSaving] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [editTxnForm] = Form.useForm();
+  const [selectedTxnKeys, setSelectedTxnKeys] = useState<string[]>([]);
+  const [bulkTxnDeleting, setBulkTxnDeleting] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -108,6 +110,7 @@ export function Banks() {
   }, []);
 
   useEffect(() => {
+    setSelectedTxnKeys([]);
     loadTransactions();
   }, [bankFilter]);
 
@@ -142,6 +145,18 @@ export function Banks() {
     await api.delete(`/transactions/${id}`);
     message.success('Transaction deleted');
     loadTransactions();
+  };
+
+  const onBulkDeleteTxn = async () => {
+    setBulkTxnDeleting(true);
+    try {
+      await Promise.all(selectedTxnKeys.map((id) => api.delete(`/transactions/${id}`)));
+      message.success(`${selectedTxnKeys.length} transaction(s) deleted`);
+      setSelectedTxnKeys([]);
+      loadTransactions();
+    } finally {
+      setBulkTxnDeleting(false);
+    }
   };
 
   const openAddEntry = () => {
@@ -343,12 +358,26 @@ export function Banks() {
             Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
           </Tag>
         )}
+        {selectedTxnKeys.length > 0 && (
+          <Popconfirm
+            title={`Delete ${selectedTxnKeys.length} selected transaction(s)?`}
+            onConfirm={onBulkDeleteTxn}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={bulkTxnDeleting}>
+              {isMobile ? selectedTxnKeys.length : `Delete Selected (${selectedTxnKeys.length})`}
+            </Button>
+          </Popconfirm>
+        )}
       </Space>
       <Table
         rowKey="id"
         loading={txnLoading}
         dataSource={transactions}
         scroll={{ x: 1030 }}
+        rowSelection={{
+          selectedRowKeys: selectedTxnKeys,
+          onChange: (keys) => setSelectedTxnKeys(keys as string[]),
+        }}
         columns={[
           {
             title: 'Date',
