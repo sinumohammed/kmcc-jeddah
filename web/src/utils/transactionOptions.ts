@@ -10,6 +10,7 @@ export const CATEGORY_OPTIONS: Record<TxnFlow, { label: string; value: string }[
     { label: 'Saving', value: 'SAVING_DEPOSIT' },
     { label: 'Interest', value: 'INTEREST' },
     { label: 'Loan', value: 'LOAN_REPAYMENT' },
+    { label: 'Profit', value: 'PROFIT' },
     { label: 'Zakat', value: 'ZAKAT' },
   ],
   EXPENSE: [
@@ -34,8 +35,6 @@ export const MEMBER_REQUIRED_CATEGORIES = [
 // offer Saving so admins can post the bank-side half of a member deposit recorded without a bank.
 export const NO_PICKER_CATEGORIES = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT', 'SAVING_WITHDRAWAL'];
 
-// PROFIT has no entry here because it's only ever created via the Distribute Profit flow, not
-// picked from this dropdown — but it still needs a human label for filter tags/summaries.
 export const CATEGORY_LABELS: Record<string, string> = {
   SAVING_DEPOSIT: 'Saving',
   SAVING_WITHDRAWAL: 'Savings Withdrawal',
