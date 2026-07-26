@@ -343,7 +343,7 @@ export function Transactions() {
           </Tag>
         )}
       </Space>
-      <Space style={{ marginBottom: 16, width: isMobile ? '100%' : undefined }} wrap>
+      <Space direction={isMobile ? 'vertical' : 'horizontal'} style={{ marginBottom: 16, width: isMobile ? '100%' : undefined }} wrap>
         <Select
           allowClear
           placeholder="All Flows"
@@ -376,7 +376,7 @@ export function Transactions() {
           onChange={(values: string[]) => setFilterParam('category', values.length ? values.join(',') : undefined)}
         />
         <DatePicker.RangePicker
-          style={isMobile ? { width: '100%' } : undefined}
+          style={{ width: isMobile ? '100%' : undefined }}
           value={dateFromFilter && dateToFilter ? [dayjs(dateFromFilter), dayjs(dateToFilter)] : null}
           onChange={onDateRangeChange}
         />

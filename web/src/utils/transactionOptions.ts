@@ -35,12 +35,16 @@ export const MEMBER_REQUIRED_CATEGORIES = [
 // offer Saving so admins can post the bank-side half of a member deposit recorded without a bank.
 export const NO_PICKER_CATEGORIES = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT', 'SAVING_WITHDRAWAL'];
 
+// Unlike CATEGORY_OPTIONS (grouped by flow, where "Loan" alone is unambiguous since Deposit vs
+// Withdrawal already disambiguates disbursement from repayment), this is a flat flow-agnostic
+// list — e.g. the Transactions page's category filter shows every category side by side, so
+// LOAN_REPAYMENT/LOAN_DISBURSEMENT need distinct labels here or they'd look like a duplicate.
 export const CATEGORY_LABELS: Record<string, string> = {
   SAVING_DEPOSIT: 'Saving',
   SAVING_WITHDRAWAL: 'Savings Withdrawal',
   INTEREST: 'Interest',
-  LOAN_REPAYMENT: 'Loan',
-  LOAN_DISBURSEMENT: 'Loan',
+  LOAN_REPAYMENT: 'Loan Repayment',
+  LOAN_DISBURSEMENT: 'Loan Disbursement',
   EXPENSE: 'Expense',
   ZAKAT: 'Zakat',
   PROFIT: 'Profit',
