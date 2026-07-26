@@ -238,6 +238,11 @@ const IMPORTABLE_CATEGORIES = new Set([
   'LOAN_DISBURSEMENT',
   'LOAN_REPAYMENT',
 ]);
+// Categories importable from the Banks page's `bankOnly` import mode — mirrors the Add Entry
+// form's category dropdown there (NO_PICKER_CATEGORIES in the frontend), since that page has no
+// member picker: LOAN_DISBURSEMENT/LOAN_REPAYMENT/SAVING_WITHDRAWAL always need a member and are
+// excluded entirely rather than importable-with-blank-member.
+const BANK_ONLY_IMPORTABLE_CATEGORIES = new Set(['SAVING_DEPOSIT', 'INTEREST', 'PROFIT', 'EXPENSE', 'ZAKAT']);
 const CATEGORY_ALIASES: Record<string, string> = {
   SAVING: 'SAVING_DEPOSIT',
   SAVINGS: 'SAVING_DEPOSIT',
@@ -278,7 +283,7 @@ function parseImportDate(raw: string): Date | null {
 // frontend can render an import preview and let the admin resolve ambiguous rows
 // (a member with multiple active loans) by picking a LoanId before committing.
 router.post('/import', requireAdmin, async (req, res) => {
-  const { rows, dryRun } = req.body ?? {};
+  const { rows, dryRun, bankOnly } = req.body ?? {};
   if (!Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'rows array is required' });
   }
@@ -288,7 +293,12 @@ router.post('/import', requireAdmin, async (req, res) => {
   const members = await prisma.member.findMany();
   const memberByCode = new Map(members.map((m) => [m.memberCode.trim().toUpperCase(), m]));
 
-  const memberRequiredCategories = ['SAVING_DEPOSIT', 'SAVING_WITHDRAWAL', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
+  const allowedCategories = bankOnly ? BANK_ONLY_IMPORTABLE_CATEGORIES : IMPORTABLE_CATEGORIES;
+  // In bankOnly mode (Banks page import) none of the allowed categories are ever member-required
+  // — MemberCode is fully optional, matching the Add Entry form's showMember={false} on that page.
+  const memberRequiredCategories = bankOnly
+    ? []
+    : ['SAVING_DEPOSIT', 'SAVING_WITHDRAWAL', 'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT'];
   const affectedMemberIds = new Set<string>();
   const errors: { row: number; error: string }[] = [];
   const preview: any[] = [];
@@ -322,15 +332,16 @@ router.post('/import', requireAdmin, async (req, res) => {
 
       const categoryRaw = String(r.category ?? '').trim().toUpperCase();
       const category = CATEGORY_ALIASES[categoryRaw] ?? categoryRaw;
-      if (!IMPORTABLE_CATEGORIES.has(category)) {
-        throw new Error(`Category "${r.category}" is not supported for import`);
+      if (!allowedCategories.has(category)) {
+        throw new Error(`Category "${r.category}" is not supported for import${bankOnly ? ' on this page' : ''}`);
       }
 
-      // Every category except SAVING_DEPOSIT requires a bank, mirroring POST /transactions.
+      // Every category except SAVING_DEPOSIT requires a bank, mirroring POST /transactions —
+      // except in bankOnly mode, where every row is a bank-side entry so bank is always required.
       const bankName = String(r.bankName ?? r.bank ?? '').trim();
       const bank = bankName ? bankByName.get(bankName.toLowerCase()) ?? null : null;
       if (bankName && !bank) throw new Error(`Bank "${bankName}" not found`);
-      if (category !== 'SAVING_DEPOSIT' && !bank) {
+      if ((bankOnly || category !== 'SAVING_DEPOSIT') && !bank) {
         throw new Error(`Bank is required for category ${category}`);
       }
 
@@ -341,9 +352,15 @@ router.post('/import', requireAdmin, async (req, res) => {
       const date = parseImportDate(r.date);
       if (!date) throw new Error(`Invalid date "${r.date}"`);
 
+      // In bankOnly mode a row is never attributed to a member — even if a MemberCode column is
+      // present — mirroring the Add Entry form's showMember={false} (no member field exists
+      // there at all). This matters beyond just "optional": attaching a member to a bankOnly
+      // SAVING_DEPOSIT row would allocate it against that member's MonthlyContribution schedule,
+      // double-counting a deposit that (per the bankOnly use case) was likely already entered —
+      // with a member — on the Transactions page, and this import is only recording its bank half.
       let member: (typeof members)[number] | null = null;
       const memberCode = String(r.memberCode ?? '').trim();
-      if (memberCode) {
+      if (!bankOnly && memberCode) {
         member = memberByCode.get(memberCode.toUpperCase()) ?? null;
         if (!member) throw new Error(`Member code "${memberCode}" not found`);
       }

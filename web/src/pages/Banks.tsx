@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Checkbox,
   DatePicker,
@@ -14,19 +15,45 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
   message,
 } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../api/client';
+import { parseCsv } from '../utils/csv';
 import { TransactionFormFields } from '../components/TransactionFormFields';
 import type { Bank, Transaction } from '../types';
 
 function flowLabel(flow: string) {
   return flow === 'INCOME' ? 'Deposit' : 'Withdrawal';
 }
+
+type ImportRow = {
+  date: string;
+  memberCode: string;
+  bankName: string;
+  flow: string;
+  category: string;
+  amount: string;
+  description: string;
+};
+
+type PreviewRow = {
+  row: number;
+  status: 'ok' | 'error';
+  memberCode?: string;
+  memberName?: string;
+  bankName?: string;
+  flow?: string;
+  category?: string;
+  amount?: number;
+  date?: string;
+  description?: string;
+  error?: string;
+};
 
 export function Banks() {
   const screens = Grid.useBreakpoint();
@@ -45,6 +72,13 @@ export function Banks() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [entrySaving, setEntrySaving] = useState(false);
   const [entryForm] = Form.useForm();
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; errors: { row: number; error: string }[] } | null>(null);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importPreview, setImportPreview] = useState<PreviewRow[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txnLoading, setTxnLoading] = useState(true);
@@ -128,6 +162,56 @@ export function Banks() {
     }
   };
 
+  const resetImportState = () => {
+    setImportRows([]);
+    setImportPreview(null);
+    setImportResult(null);
+  };
+
+  const onImportFile = async (file: File) => {
+    setPreviewLoading(true);
+    resetImportState();
+    try {
+      const text = await file.text();
+      const parsed = parseCsv(text);
+      const rows: ImportRow[] = parsed.map((r) => ({
+        date: r.Date,
+        memberCode: r.MemberCode,
+        bankName: r.BankName,
+        flow: r.Flow,
+        category: r.Category,
+        amount: r.Amount,
+        description: r.Description,
+      }));
+      setImportRows(rows);
+      const { data } = await api.post('/transactions/import', { rows, dryRun: true, bankOnly: true });
+      setImportPreview(data.preview);
+    } catch (e: any) {
+      message.error(e.response?.data?.error ?? 'Failed to preview file');
+    } finally {
+      setPreviewLoading(false);
+    }
+    return false;
+  };
+
+  const onConfirmImport = async () => {
+    setImporting(true);
+    try {
+      const { data } = await api.post('/transactions/import', { rows: importRows, bankOnly: true });
+      setImportResult(data);
+      setImportPreview(null);
+      if (data.created > 0) {
+        message.success(`Imported ${data.created} ${data.created === 1 ? 'entry' : 'entries'}`);
+        load();
+        loadTransactions();
+      }
+    } catch (e: any) {
+      message.error(e.response?.data?.error ?? 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
@@ -178,6 +262,15 @@ export function Banks() {
         </Button>
         <Button icon={<PlusOutlined />} onClick={openAddEntry}>
           Add Entry
+        </Button>
+        <Button
+          icon={<UploadOutlined />}
+          onClick={() => {
+            resetImportState();
+            setImportOpen(true);
+          }}
+        >
+          Import CSV
         </Button>
       </Space>
       <Table
@@ -403,6 +496,132 @@ export function Banks() {
         <Form form={editTxnForm} layout="vertical" onFinish={onSubmitEditTxn}>
           <TransactionFormFields form={editTxnForm} members={[]} banks={banks} memberLoans={[]} showMember={false} />
         </Form>
+      </Modal>
+
+      <Modal
+        title="Import Bank Entries"
+        open={importOpen}
+        onCancel={() => setImportOpen(false)}
+        width={importPreview && !importResult ? 900 : 520}
+        footer={
+          importPreview && !importResult ? (
+            <Space>
+              <Button onClick={resetImportState}>Back</Button>
+              <Button
+                type="primary"
+                loading={importing}
+                disabled={importPreview.every((p) => p.status !== 'ok')}
+                onClick={onConfirmImport}
+              >
+                Confirm Import ({importPreview.filter((p) => p.status === 'ok').length} row(s))
+              </Button>
+            </Space>
+          ) : importResult ? (
+            <Space>
+              <Button onClick={resetImportState}>Import Another File</Button>
+              <Button type="primary" onClick={() => setImportOpen(false)}>
+                Close
+              </Button>
+            </Space>
+          ) : (
+            <Button onClick={() => setImportOpen(false)}>Close</Button>
+          )
+        }
+        destroyOnClose
+      >
+        {!importPreview && !importResult && (
+          <>
+            <Typography.Paragraph>
+              Upload a CSV with columns: <code>Date</code> (YYYY-MM-DD, or DD/MM/YYYY as Excel
+              tends to rewrite it), <code>MemberCode</code> (optional — every category importable
+              here can be recorded without a member), <code>BankName</code> (always required, since
+              every row here is a bank-side entry), <code>Flow</code> (INCOME/EXPENSE or
+              Deposit/Withdrawal), <code>Category</code> (Saving, Interest, Profit, Expense, Zakat
+              only — Loan and Savings Withdrawal rows always need a member and aren't importable on
+              this page; use Transactions page import for those), <code>Amount</code>,{' '}
+              <code>Description</code>. You'll get a preview to check before anything is saved.
+            </Typography.Paragraph>
+            <Upload.Dragger
+              accept=".csv"
+              multiple={false}
+              showUploadList={false}
+              disabled={previewLoading}
+              beforeUpload={onImportFile}
+            >
+              <p className="ant-upload-drag-icon">
+                <UploadOutlined />
+              </p>
+              <p className="ant-upload-text">
+                {previewLoading ? 'Reading file…' : 'Click or drag a CSV file here to import'}
+              </p>
+            </Upload.Dragger>
+          </>
+        )}
+
+        {importPreview && !importResult && (
+          <>
+            <Alert
+              style={{ marginBottom: 12 }}
+              type={importPreview.some((p) => p.status !== 'ok') ? 'warning' : 'success'}
+              showIcon
+              message={`${importPreview.filter((p) => p.status === 'ok').length} of ${importPreview.length} row(s) ready to import`}
+              description="Rows with errors will be skipped."
+            />
+            <Table
+              size="small"
+              rowKey="row"
+              dataSource={importPreview}
+              pagination={false}
+              scroll={{ y: 360 }}
+              columns={[
+                { title: 'Row', dataIndex: 'row', width: 55 },
+                {
+                  title: 'Member',
+                  width: 150,
+                  render: (_, p) => (p.memberName ? `${p.memberName} (${p.memberCode})` : '-'),
+                },
+                { title: 'Bank', dataIndex: 'bankName', width: 130, render: (v) => v || '-' },
+                {
+                  title: 'Flow',
+                  dataIndex: 'flow',
+                  width: 90,
+                  render: (v) => (v ? <Tag color={v === 'INCOME' ? 'green' : 'red'}>{flowLabel(v)}</Tag> : '-'),
+                },
+                { title: 'Category', dataIndex: 'category', width: 120 },
+                { title: 'Amount', dataIndex: 'amount', width: 90, render: (v) => (v != null ? `₹${v}` : '-') },
+                {
+                  title: 'Status',
+                  width: 200,
+                  render: (_, p) =>
+                    p.status === 'ok' ? (
+                      <Tag color="green">OK</Tag>
+                    ) : (
+                      <Tag color="red">{p.error}</Tag>
+                    ),
+                },
+              ]}
+            />
+          </>
+        )}
+
+        {importResult && (
+          <div>
+            <Alert
+              type={importResult.errors.length === 0 ? 'success' : 'warning'}
+              showIcon
+              message={`Imported ${importResult.created} of ${importResult.created + importResult.errors.length} row(s)`}
+            />
+            {importResult.errors.length > 0 && (
+              <ul style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8 }}>
+                {importResult.errors.map((e) => (
+                  <li key={e.row}>
+                    Row {e.row}: {e.error}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );
