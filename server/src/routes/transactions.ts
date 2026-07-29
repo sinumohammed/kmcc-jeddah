@@ -49,7 +49,7 @@ router.post('/', requireAdmin, async (req, res) => {
   if (!date || !flow || !category || amount === undefined || amount === null || amount < 0) {
     return res.status(400).json({ error: 'date, flow, category and amount (0 or more) are required' });
   }
-  if (category !== 'SAVING_DEPOSIT' && !bankId) {
+  if (category !== 'SAVING_DEPOSIT' && category !== 'SAVING_WITHDRAWAL' && !bankId) {
     return res.status(400).json({ error: 'bankId is required for this category' });
   }
 
@@ -57,7 +57,7 @@ router.post('/', requireAdmin, async (req, res) => {
   // bank-only entry form (no member picker) also posts SAVING_DEPOSIT rows to record the
   // bank-side half of a deposit that was entered without a bank — so it's not hard-enforced
   // here. LOAN_DISBURSEMENT/LOAN_REPAYMENT always tie to a specific Loan and stay required.
-  // SAVING_WITHDRAWAL always debits one member's savings, so it's required too.
+  // SAVING_WITHDRAWAL can also be entered before the admin knows which bank paid it out.
   const memberLinkedCategories = ['LOAN_DISBURSEMENT', 'LOAN_REPAYMENT', 'SAVING_WITHDRAWAL'];
   if (memberLinkedCategories.includes(category) && !memberId) {
     return res.status(400).json({ error: 'A member must be selected for this category' });
@@ -336,12 +336,13 @@ router.post('/import', requireAdmin, async (req, res) => {
         throw new Error(`Category "${r.category}" is not supported for import${bankOnly ? ' on this page' : ''}`);
       }
 
-      // Every category except SAVING_DEPOSIT requires a bank, mirroring POST /transactions —
-      // except in bankOnly mode, where every row is a bank-side entry so bank is always required.
+      // Every category except SAVING_DEPOSIT/SAVING_WITHDRAWAL requires a bank, mirroring
+      // POST /transactions — except in bankOnly mode, where every row is a bank-side entry so
+      // bank is always required (and SAVING_WITHDRAWAL isn't even in BANK_ONLY_IMPORTABLE_CATEGORIES).
       const bankName = String(r.bankName ?? r.bank ?? '').trim();
       const bank = bankName ? bankByName.get(bankName.toLowerCase()) ?? null : null;
       if (bankName && !bank) throw new Error(`Bank "${bankName}" not found`);
-      if ((bankOnly || category !== 'SAVING_DEPOSIT') && !bank) {
+      if ((bankOnly || (category !== 'SAVING_DEPOSIT' && category !== 'SAVING_WITHDRAWAL')) && !bank) {
         throw new Error(`Bank is required for category ${category}`);
       }
 

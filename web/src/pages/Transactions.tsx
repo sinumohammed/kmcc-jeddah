@@ -100,7 +100,7 @@ export function Transactions() {
 
   const category = Form.useWatch('category', form);
   const selectedMemberId = Form.useWatch('memberId', form);
-  const bankRequired = category !== 'SAVING_DEPOSIT';
+  const bankRequired = category !== 'SAVING_DEPOSIT' && category !== 'SAVING_WITHDRAWAL';
 
   const load = () => {
     setLoading(true);
