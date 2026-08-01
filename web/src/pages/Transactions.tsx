@@ -98,9 +98,12 @@ export function Transactions() {
   const [form] = Form.useForm();
   const [profitForm] = Form.useForm();
 
-  const category = Form.useWatch('category', form);
   const selectedMemberId = Form.useWatch('memberId', form);
-  const bankRequired = category !== 'SAVING_DEPOSIT' && category !== 'SAVING_WITHDRAWAL';
+  const category = Form.useWatch('category', form);
+  // TEMPORARY: bank is optional for every category right now so old entries can be backfilled
+  // without a bank mapping. Revert to `category !== 'SAVING_DEPOSIT' && category !== 'SAVING_WITHDRAWAL'`
+  // once backfilling is done.
+  const bankRequired = false;
 
   const load = () => {
     setLoading(true);
@@ -517,7 +520,8 @@ export function Transactions() {
             <Typography.Paragraph>
               Upload a CSV with the same columns as Export CSV: <code>Date</code> (YYYY-MM-DD, or
               DD/MM/YYYY as Excel tends to rewrite it), <code>MemberCode</code> (required for Saving,
-              Savings Withdrawal, and Loan rows), <code>BankName</code> (required except for Saving),{' '}
+              Savings Withdrawal, and Loan rows), <code>BankName</code> (optional for now, for all
+              categories, while old entries are backfilled),{' '}
               <code>Flow</code> (INCOME/EXPENSE or Deposit/Withdrawal), <code>Category</code> (Saving,
               Savings Withdrawal, Interest, Profit, Expense, Zakat, Loan),{' '}
               <code>Amount</code>, <code>Description</code>,{' '}
