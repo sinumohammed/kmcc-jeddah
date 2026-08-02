@@ -26,8 +26,8 @@ router.get('/summary', async (_req, res) => {
   const totalSavings = totalDeposits.minus(totalWithdrawals);
 
   const [incomeTotal, expenseTotal] = await Promise.all([
-    prisma.transaction.aggregate({ where: { flow: 'INCOME' }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { flow: 'EXPENSE' }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { flow: 'INCOME', bankId: { not: null } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { flow: 'EXPENSE', bankId: { not: null } }, _sum: { amount: true } }),
   ]);
 
   const banks = await prisma.bank.findMany({ where: { active: true } });
