@@ -16,6 +16,7 @@ export const CATEGORY_OPTIONS: Record<TxnFlow, { label: string; value: string }[
   EXPENSE: [
     { label: 'Loan', value: 'LOAN_DISBURSEMENT' },
     { label: 'Savings Withdrawal', value: 'SAVING_WITHDRAWAL' },
+    { label: 'Interest', value: 'INTEREST' },
     { label: 'Expense', value: 'EXPENSE' },
     { label: 'Zakat', value: 'ZAKAT' },
   ],
