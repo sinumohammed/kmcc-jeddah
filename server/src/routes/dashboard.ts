@@ -14,14 +14,24 @@ async function sumByCategory(category: string) {
   return new Decimal(result._sum.amount ?? 0);
 }
 
+// INTEREST and ZAKAT are selectable under both Deposit (INCOME) and Withdrawal (EXPENSE) flow,
+// so a plain category sum would add the two flows together instead of netting them.
+async function netByCategory(category: string) {
+  const [income, expense] = await Promise.all([
+    prisma.transaction.aggregate({ where: { category: category as any, flow: 'INCOME' }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { category: category as any, flow: 'EXPENSE' }, _sum: { amount: true } }),
+  ]);
+  return new Decimal(income._sum.amount ?? 0).minus(new Decimal(expense._sum.amount ?? 0));
+}
+
 router.get('/summary', async (_req, res) => {
   const [totalDeposits, totalWithdrawals, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
     sumByCategory('SAVING_DEPOSIT'),
     sumByCategory('SAVING_WITHDRAWAL'),
     sumByCategory('PROFIT'),
-    sumByCategory('INTEREST'),
+    netByCategory('INTEREST'),
     sumByCategory('EXPENSE'),
-    sumByCategory('ZAKAT'),
+    netByCategory('ZAKAT'),
   ]);
   const totalSavings = totalDeposits.minus(totalWithdrawals);
 
