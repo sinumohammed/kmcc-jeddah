@@ -26,7 +26,7 @@ async function netByCategory(category: string) {
 
 router.get('/summary', async (_req, res) => {
   const [totalDeposits, totalWithdrawals, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
-    sumByCategory('SAVING_DEPOSIT'),
+    netByCategory('SAVING_DEPOSIT'),
     sumByCategory('SAVING_WITHDRAWAL'),
     sumByCategory('PROFIT'),
     netByCategory('INTEREST'),
