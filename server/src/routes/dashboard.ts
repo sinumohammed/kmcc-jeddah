@@ -40,6 +40,14 @@ router.get('/summary', async (_req, res) => {
     prisma.transaction.aggregate({ where: { flow: 'EXPENSE', bankId: { not: null } }, _sum: { amount: true } }),
   ]);
 
+  // Unscoped by bankId (unlike incomeTotal/expenseTotal above, which are scoped to match
+  // banks-summary for the Total Bank Balance tile) — these are the gross income/expense across
+  // every transaction regardless of category, for the Total Income/Total Expense (All) tiles.
+  const [grossIncome, grossExpense] = await Promise.all([
+    prisma.transaction.aggregate({ where: { flow: 'INCOME' }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { flow: 'EXPENSE' }, _sum: { amount: true } }),
+  ]);
+
   const banks = await prisma.bank.findMany({ where: { active: true } });
   const totalOpeningBalance = banks.reduce(
     (sum, b) => sum.plus(new Decimal(b.openingBalance)),
@@ -64,7 +72,29 @@ router.get('/summary', async (_req, res) => {
     totalInterestAmount: totalInterest,
     totalExpense,
     totalZakat,
+    totalIncomeAll: new Decimal(grossIncome._sum.amount ?? 0),
+    totalExpenseAll: new Decimal(grossExpense._sum.amount ?? 0),
   });
+});
+
+// Per-category breakdown of every transaction under one flow, for the Total Income/Total
+// Expense (All) drill-down tiles — e.g. flow=INCOME groups SAVING_DEPOSIT, INTEREST,
+// LOAN_REPAYMENT, PROFIT, ZAKAT rows that are all tagged flow: INCOME.
+router.get('/flow-summary', async (req, res) => {
+  const flow = req.query.flow === 'EXPENSE' ? 'EXPENSE' : 'INCOME';
+
+  const rows = await prisma.transaction.groupBy({
+    by: ['category'],
+    where: { flow },
+    _sum: { amount: true },
+  });
+
+  const breakdown = rows
+    .map((r) => ({ category: r.category, amount: new Decimal(r._sum.amount ?? 0) }))
+    .filter((r) => !r.amount.isZero())
+    .sort((a, b) => b.amount.comparedTo(a.amount));
+
+  res.json({ flow, breakdown });
 });
 
 router.get('/members-summary', async (_req, res) => {

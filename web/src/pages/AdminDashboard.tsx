@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Loader } from '../components/Loader';
-import type { BankSummary, DashboardSummary, MembersSummary } from '../types';
+import { CATEGORY_LABELS } from '../utils/transactionOptions';
+import type { BankSummary, DashboardSummary, FlowBreakdownRow, MembersSummary } from '../types';
 
 const TILES: { key: keyof DashboardSummary; label: string; color: string; category?: string }[] = [
   {
@@ -24,6 +25,13 @@ const TILES: { key: keyof DashboardSummary; label: string; color: string; catego
   { key: 'totalInterestAmount', label: 'Total Interest Amount', color: '#2980b9', category: 'INTEREST' },
   { key: 'totalExpense', label: 'Total Expense', color: '#d35400', category: 'EXPENSE' },
   { key: 'totalZakat', label: 'Total Zakat', color: '#27ae60', category: 'ZAKAT' },
+];
+
+// Gross cash in/out across every category (unlike the per-category TILES above) — drills into a
+// per-category breakdown via /dashboard/flow-summary rather than the transactions list.
+const FLOW_TILES: { key: 'totalIncomeAll' | 'totalExpenseAll'; label: string; color: string; flow: 'INCOME' | 'EXPENSE' }[] = [
+  { key: 'totalIncomeAll', label: 'Total Inflow (All)', color: '#1f9d55', flow: 'INCOME' },
+  { key: 'totalExpenseAll', label: 'Total Outflow (All)', color: '#b7791f', flow: 'EXPENSE' },
 ];
 
 const DONUT_COLORS = ['#0f3460', '#16a085', '#8e44ad', '#d35400', '#2980b9', '#27ae60', '#c0392b', '#f39c12'];
@@ -57,6 +65,10 @@ export function AdminDashboard() {
   const [bankLoading, setBankLoading] = useState(false);
   const [membersModalOpen, setMembersModalOpen] = useState(false);
   const [membersSummary, setMembersSummary] = useState<MembersSummary | null>(null);
+  const [flowModalOpen, setFlowModalOpen] = useState(false);
+  const [flowModalLoading, setFlowModalLoading] = useState(false);
+  const [flowModalTile, setFlowModalTile] = useState<(typeof FLOW_TILES)[number] | null>(null);
+  const [flowBreakdown, setFlowBreakdown] = useState<FlowBreakdownRow[]>([]);
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
@@ -92,11 +104,34 @@ export function AdminDashboard() {
     navigate(`/members?type=${type}`);
   };
 
+  const onFlowTileClick = (tile: (typeof FLOW_TILES)[number]) => {
+    setFlowModalTile(tile);
+    setFlowModalOpen(true);
+    setFlowModalLoading(true);
+    api
+      .get('/dashboard/flow-summary', { params: { flow: tile.flow } })
+      .then(({ data }) => setFlowBreakdown(data.breakdown))
+      .finally(() => setFlowModalLoading(false));
+  };
+
+  const goToFlowCategory = (category: string) => {
+    if (!flowModalTile) return;
+    setFlowModalOpen(false);
+    navigate(`/transactions?flow=${flowModalTile.flow}&category=${category}`);
+  };
+
   const positiveTotal = bankSummaries.reduce((sum, b) => sum + Math.max(0, Number(b.balance)), 0);
   const donutShares = bankSummaries.map((b, i) => ({
     ...b,
     color: DONUT_COLORS[i % DONUT_COLORS.length],
     value: positiveTotal > 0 ? (Math.max(0, Number(b.balance)) / positiveTotal) * 100 : 0,
+  }));
+
+  const flowBreakdownTotal = flowBreakdown.reduce((sum, r) => sum + Number(r.amount), 0);
+  const flowDonutShares = flowBreakdown.map((r, i) => ({
+    ...r,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+    value: flowBreakdownTotal > 0 ? (Number(r.amount) / flowBreakdownTotal) * 100 : 0,
   }));
 
   const memberCountsBase = (membersSummary?.savingMembers ?? 0) + (membersSummary?.loanMembers ?? 0);
@@ -154,6 +189,25 @@ export function AdminDashboard() {
             </Col>
           );
         })}
+        {FLOW_TILES.map((tile) => (
+          <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>
+            <Card
+              size={isMobile ? 'small' : 'default'}
+              hoverable
+              onClick={() => onFlowTileClick(tile)}
+              style={{ position: 'relative', borderTop: `3px solid ${tile.color}` }}
+            >
+              <DrillBadge color={tile.color} />
+              <Statistic
+                title={isMobile ? <span style={{ fontSize: 12 }}>{tile.label}</span> : tile.label}
+                value={Number(summary?.[tile.key] ?? 0)}
+                precision={2}
+                prefix="₹"
+                valueStyle={{ color: tile.color, fontSize: isMobile ? 18 : undefined }}
+              />
+            </Card>
+          </Col>
+        ))}
       </Row>
 
       <Modal
@@ -283,6 +337,71 @@ export function AdminDashboard() {
             </List.Item>
           )}
         />
+      </Modal>
+
+      <Modal
+        title={flowModalTile ? `${flowModalTile.label} Breakdown` : 'Breakdown'}
+        open={flowModalOpen}
+        onCancel={() => setFlowModalOpen(false)}
+        footer={null}
+      >
+        {flowModalLoading ? (
+          <Loader minHeight={200} />
+        ) : (
+          <>
+            <div
+              style={{
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
+                margin: '16px auto',
+                background: buildDonutGradient(flowDonutShares),
+                position: 'relative',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 30,
+                  borderRadius: '50%',
+                  background: token.colorBgContainer,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                }}
+              >
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Total
+                </Typography.Text>
+                <Typography.Text strong>₹{flowBreakdownTotal.toFixed(2)}</Typography.Text>
+              </div>
+            </div>
+            <List
+              dataSource={flowDonutShares}
+              renderItem={(row) => (
+                <List.Item onClick={() => goToFlowCategory(row.category)} style={{ cursor: 'pointer' }}>
+                  <List.Item.Meta
+                    avatar={
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          background: row.color,
+                          marginTop: 4,
+                        }}
+                      />
+                    }
+                    title={CATEGORY_LABELS[row.category] ?? row.category}
+                  />
+                  <Typography.Text strong>₹{Number(row.amount).toFixed(2)}</Typography.Text>
+                </List.Item>
+              )}
+            />
+          </>
+        )}
       </Modal>
     </>
   );

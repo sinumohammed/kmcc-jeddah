@@ -98,6 +98,18 @@ export interface DashboardSummary {
   totalInterestAmount: string;
   totalExpense: string;
   totalZakat: string;
+  totalIncomeAll: string;
+  totalExpenseAll: string;
+}
+
+export interface FlowBreakdownRow {
+  category: string;
+  amount: string;
+}
+
+export interface FlowBreakdown {
+  flow: 'INCOME' | 'EXPENSE';
+  breakdown: FlowBreakdownRow[];
 }
 
 export interface MembersSummary {
