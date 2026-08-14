@@ -163,11 +163,15 @@ export function AdminDashboard() {
         </Col>
         {TILES.map((tile) => {
           const isBank = tile.key === 'totalBankBalance';
+          const isSavings = tile.key === 'totalSavingsAmount';
           const drillable = isBank || Boolean(tile.category);
           const onClick = isBank
             ? onBankBalanceClick
             : tile.category
-              ? () => navigate(`/transactions?category=${tile.category}`)
+              ? () =>
+                  navigate(
+                    `/transactions?category=${tile.category}${isSavings ? '&bankId=none' : ''}`
+                  )
               : undefined;
           return (
             <Col xs={12} sm={12} md={8} lg={6} key={tile.key}>

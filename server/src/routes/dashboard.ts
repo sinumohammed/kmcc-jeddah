@@ -25,15 +25,23 @@ async function netByCategory(category: string) {
 }
 
 router.get('/summary', async (_req, res) => {
-  const [totalDeposits, totalWithdrawals, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
-    netByCategory('SAVING_DEPOSIT'),
+  const [memberDeposits, totalWithdrawals, totalProfit, totalInterest, totalExpense, totalZakat] = await Promise.all([
+    // bankId: null isolates real member savings deposits (Transactions page, member-attributed)
+    // from bank-mapped SAVING_DEPOSIT rows, which are always org-level bank bookkeeping entries
+    // (opening balances, internal transfers, legacy refunds) with no memberId — confirmed via a
+    // direct DB check that every bank-mapped SAVING_DEPOSIT row has memberId: null and every
+    // bank-less one has memberId set. Those bank-mapped rows are excluded entirely, not netted.
+    prisma.transaction.aggregate({
+      where: { category: 'SAVING_DEPOSIT', flow: 'INCOME', bankId: null },
+      _sum: { amount: true },
+    }),
     sumByCategory('SAVING_WITHDRAWAL'),
     sumByCategory('PROFIT'),
     netByCategory('INTEREST'),
     sumByCategory('EXPENSE'),
     netByCategory('ZAKAT'),
   ]);
-  const totalSavings = totalDeposits.minus(totalWithdrawals);
+  const totalSavings = new Decimal(memberDeposits._sum.amount ?? 0).minus(totalWithdrawals);
 
   const [incomeTotal, expenseTotal] = await Promise.all([
     prisma.transaction.aggregate({ where: { flow: 'INCOME', bankId: { not: null } }, _sum: { amount: true } }),

@@ -342,7 +342,7 @@ export function Transactions() {
         )}
         {bankFilter && (
           <Tag closable onClose={clearBankFilter} color="blue">
-            Filtered by: {banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
+            Filtered by: {bankFilter === 'none' ? 'No Bank' : banks.find((b) => b.id === bankFilter)?.name ?? 'Bank'}
           </Tag>
         )}
       </Space>

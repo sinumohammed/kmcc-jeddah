@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     where.memberId = memberId;
   }
 
-  if (bankId) where.bankId = bankId;
+  if (bankId) where.bankId = bankId === 'none' ? null : bankId;
   if (category) {
     const categories = category.split(',');
     where.category = categories.length > 1 ? { in: categories } : categories[0];
