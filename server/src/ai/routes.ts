@@ -95,6 +95,9 @@ async function membersFor(req: AiRequest, what: string, max = 3): Promise<{ memb
     return { members: [self] };
   }
   const found = findMembers(search, all);
+  // A member only ever sees themselves: a search that names nobody (the model
+  // passed "my" or "എന്റെ" as the search) is about them - not "no record".
+  if (!found.length && !req.aiUser.isAdmin && self) return { members: [self] };
   if (!found.length) {
     return {
       members: [],
