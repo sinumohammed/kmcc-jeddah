@@ -11,6 +11,9 @@ import {
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import AssistantIcon from './assistant/AssistantIcon';
+import { AssistantLauncher } from './assistant/AssistantLauncher';
+import { useAssistantAvailable } from './assistant/useAssistantAvailable';
 
 const { Header, Sider, Content, Footer } = Layout;
 
@@ -22,6 +25,11 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { token } = theme.useToken();
+  const assistantAvailable = useAssistantAvailable();
+  // The assistant: a menu item (its own page), and the floating button on every other page.
+  const assistantItem = assistantAvailable
+    ? [{ key: '/assistant', icon: <span className="anticon"><AssistantIcon size={16} /></span>, label: 'Assistant' }]
+    : [];
 
   const items = isAdmin
     ? [
@@ -30,10 +38,12 @@ export function AppLayout() {
         { key: '/banks', icon: <BankOutlined />, label: 'Banks' },
         { key: '/transactions', icon: <SwapOutlined />, label: 'Transactions' },
         { key: '/profile', icon: <UserOutlined />, label: 'Member Profile' },
+        ...assistantItem,
         { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
       ]
     : [
         { key: '/profile', icon: <UserOutlined />, label: 'My Profile' },
+        ...assistantItem,
         { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
       ];
 
@@ -115,6 +125,7 @@ export function AppLayout() {
           KMCC JEDDAH NEERAD | Designed by Sinu
         </Footer>
       </Layout>
+      {assistantAvailable && location.pathname !== '/assistant' && <AssistantLauncher />}
     </Layout>
   );
 }

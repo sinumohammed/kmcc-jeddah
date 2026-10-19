@@ -60,6 +60,8 @@ model Member {
   contributions  MonthlyContribution[]
   loans          Loan[]
   transactions   Transaction[]
+  channelLinks   ChannelLink[]
+  linkCodes      ChannelLinkCode[]
 
   @@index([mobile])
 }
@@ -145,4 +147,61 @@ model Transaction {
   @@index([bankId])
   @@index([category])
   @@index([profitBatchId])
+}
+
+// --- The AI assistant (server/src/ai/) ---
+
+// Small app-wide settings, by key - the assistant's daily limits
+// ("assistant.daily_limit.member", set on the Settings page).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Questions asked per person per day (the KMCC day, see ai/time.ts), for the
+// daily limits. userKey: the member id; a Telegram guest "tg:<telegram id>".
+model AssistantUsage {
+  userKey String
+  day     String
+  count   Int    @default(0)
+
+  @@id([userKey, day])
+}
+
+// A chat account (Telegram now, WhatsApp later) linked to a KMCC login.
+model ChannelLink {
+  channel     String
+  externalId  String
+  memberId    String
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  displayName String?
+  createdAt   DateTime @default(now())
+
+  @@id([channel, externalId])
+  @@index([memberId])
+}
+
+// One-time codes for linking a chat account from the app (10 minutes; only
+// the hash is kept).
+model ChannelLinkCode {
+  codeHash  String   @id
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+}
+
+// A chat account's preferences, linked or not (the voice-note language).
+model ChannelPref {
+  channel       String
+  externalId    String
+  voiceLanguage String
+
+  @@id([channel, externalId])
+}
+
+// Telegram update ids already handled: Telegram may send one twice.
+model TelegramUpdate {
+  updateId   BigInt   @id
+  receivedAt DateTime @default(now())
 }

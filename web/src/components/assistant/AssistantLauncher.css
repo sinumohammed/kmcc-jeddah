@@ -1,0 +1,77 @@
+/* Kept apart from AssistantChat.css: the chat (and its charts) loads only
+   when opened; the button is on every page. */
+/* The launcher: the assistant from any screen (AssistantLauncher.tsx). Its icon in a
+   navy disc with a soft ring; on wider screens it opens out to show its
+   name on hover. */
+.assistant-launcher {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  height: 58px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 29px;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  background: linear-gradient(135deg, #2f6aa3, #0f3460 55%, #0a2240);
+  box-shadow: 0 6px 20px rgba(15, 52, 96, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.assistant-launcher::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgba(47, 106, 163, 0.6);
+  animation: assistant-ring 2.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.assistant-launcher-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  transition: max-width 0.25s, padding 0.25s;
+}
+
+.assistant-launcher:hover,
+.assistant-launcher:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(15, 52, 96, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 3px solid rgba(47, 106, 163, 0.5);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) and (min-width: 768px) {
+  .assistant-launcher:hover .assistant-launcher-label,
+  .assistant-launcher:focus-visible .assistant-launcher-label {
+    max-width: 180px;
+    padding: 0 8px 0 6px;
+  }
+}
+
+@keyframes assistant-ring {
+  0% { opacity: 0.9; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-launcher::before {
+    animation: none;
+    opacity: 0;
+  }
+
+  .assistant-launcher {
+    transition: none;
+  }
+}

@@ -14,11 +14,13 @@
     "antd": "^6.5.1",
     "axios": "^1.18.1",
     "dayjs": "^1.11.21",
+    "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
+    "recharts": "^3.9.2",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

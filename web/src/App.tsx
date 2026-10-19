@@ -9,6 +9,7 @@ import { Banks } from './pages/Banks';
 import { Transactions } from './pages/Transactions';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
+import { Assistant } from './pages/Assistant';
 import { useAuthStore } from './store/auth';
 import { useThemeStore } from './store/theme';
 
@@ -40,6 +41,7 @@ export default function App() {
               </Route>
               <Route path="/profile" element={<Profile />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/assistant" element={<Assistant />} />
             </Route>
           </Route>
         </Routes>

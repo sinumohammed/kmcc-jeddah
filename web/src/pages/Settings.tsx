@@ -4,10 +4,15 @@ import { api } from '../api/client';
 import { Loader } from '../components/Loader';
 import { useAuthStore } from '../store/auth';
 import { useThemeStore } from '../store/theme';
+import { AssistantSettingsCard } from '../components/assistant/AssistantSettingsCard';
+import { TelegramCard } from '../components/assistant/TelegramCard';
+import { useAssistantAvailable } from '../components/assistant/useAssistantAvailable';
 
 export function Settings() {
   const authMember = useAuthStore((s) => s.member)!;
   const { mode, toggle } = useThemeStore();
+  const isAdmin = authMember.role === 'ADMIN';
+  const assistantAvailable = useAssistantAvailable();
 
   const [loading, setLoading] = useState(true);
   const [contactForm] = Form.useForm();
@@ -116,6 +121,10 @@ export function Settings() {
           </Form.Item>
         </Form>
       </Card>
+
+      {/* The AI assistant: the admin's daily limits; everyone's Telegram link. */}
+      {assistantAvailable && isAdmin && <AssistantSettingsCard />}
+      {assistantAvailable && <TelegramCard admin={isAdmin} />}
     </Space>
   );
 }

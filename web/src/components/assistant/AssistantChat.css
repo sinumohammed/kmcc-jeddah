@@ -1,0 +1,851 @@
+/* The Assistant chat. Built for phones first:
+   - the whole chat is exactly as tall as the visible screen below it
+     (useFitToViewport), so the composer is always in view, also with the
+     keyboard open; only the message list scrolls
+   - the text box is 16px: iPhone Safari zooms into any smaller text field on
+     focus and leaves the page zoomed, wider than the screen
+   - nothing is wider than the screen; long words and numbers wrap
+   Colours come from the app's antd theme (light and dark): AssistantChat.tsx
+   sets the --a-* variables from theme.useToken(); the values here are only
+   the light ones, for the printed copy (AnswerActions.tsx). The accent is
+   KMCC's navy. */
+
+.assistant-shell {
+  --a-bg: #ffffff;
+  --a-border: #e5e7eb;
+  --a-text: rgba(0, 0, 0, 0.88);
+  --a-muted: rgba(0, 0, 0, 0.55);
+  --a-primary: #0f3460;
+  --a-gold: #d08a1a;
+  --a-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  height: calc(100dvh - 140px); /* until measured */
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--a-bg);
+  border: 1px solid var(--a-border);
+  border-radius: 20px;
+  box-shadow: var(--a-shadow);
+  overflow: hidden;
+  text-align: left;
+  color: var(--a-text);
+}
+
+.assistant-embedded {
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.assistant-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/* Header */
+.assistant-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px 12px 16px;
+  border-bottom: 1px solid var(--a-border);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(47, 106, 163, 0.1), transparent 55%),
+    var(--a-bg);
+  flex: 0 0 auto;
+}
+
+.assistant-head-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--a-primary) 35%, transparent);
+}
+
+.assistant-online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid var(--a-bg);
+}
+
+.assistant-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.assistant-head-title {
+  display: flex;
+  white-space: nowrap;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  font-weight: 650;
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.assistant-ai-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #fff;
+  background: linear-gradient(135deg, #2f6aa3, #0f3460);
+}
+
+.assistant-head-sub {
+  font-size: 12.5px;
+  color: var(--a-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.assistant-quota {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--a-primary) 10%, transparent);
+  color: var(--a-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.assistant-quota.is-low {
+  background: rgba(250, 173, 20, 0.15);
+  color: #d48806;
+}
+
+.assistant-quota.is-out {
+  background: rgba(255, 77, 79, 0.15);
+  color: #ff4d4f;
+}
+
+/* Messages: the only part that scrolls */
+.assistant-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.assistant-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.assistant-row.is-user {
+  justify-content: flex-end;
+}
+
+.assistant-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  border-radius: 50%;
+}
+
+.assistant-bubble {
+  min-width: 0;
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.assistant-bubble.is-user {
+  background: linear-gradient(135deg, #2f6aa3, #0f3460);
+  color: #fff;
+  border-top-right-radius: 6px;
+  white-space: pre-wrap;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--a-primary) 25%, transparent);
+}
+
+.assistant-bubble.is-assistant {
+  background: var(--a-bg);
+  border: 1px solid var(--a-border);
+  border-top-left-radius: 6px;
+  box-shadow: var(--a-shadow);
+}
+
+.assistant-bubble .ant-alert {
+  margin: -2px -6px;
+}
+
+.assistant-line {
+  min-height: 1em;
+}
+
+.assistant-list-line {
+  padding-left: 6px;
+}
+
+.assistant-bullet {
+  position: relative;
+  padding-left: 18px;
+}
+
+.assistant-bullet::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0.75em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--a-primary);
+}
+
+.assistant-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--a-border);
+}
+
+.assistant-sources-label {
+  font-size: 11px;
+  color: var(--a-muted);
+}
+
+.assistant-source {
+  margin: 0;
+  font-size: 11px;
+  white-space: normal;
+  color: var(--a-primary);
+  background: color-mix(in srgb, var(--a-primary) 10%, transparent);
+}
+
+/* "Checking the KMCC records…" - three dots and the words */
+.assistant-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+}
+
+.assistant-typing-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.assistant-typing-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--a-primary);
+  animation: assistant-dot 1.2s infinite ease-in-out;
+}
+
+.assistant-typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.assistant-typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.assistant-typing-text {
+  font-size: 13px;
+  color: var(--a-muted);
+}
+
+@keyframes assistant-dot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Empty chat: welcome and ready questions */
+.assistant-empty {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 4px 2px 8px;
+}
+
+.assistant-empty-avatar {
+  display: inline-flex;
+  border-radius: 50%;
+  margin-bottom: 14px;
+  box-shadow: 0 0 0 8px rgba(47, 106, 163, 0.1), 0 8px 24px color-mix(in srgb, var(--a-primary) 30%, transparent);
+}
+
+.assistant-empty-greeting {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--a-gold);
+  margin-bottom: 2px;
+}
+
+.assistant-empty-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+
+.assistant-empty-text {
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--a-muted);
+  margin-bottom: 18px;
+}
+
+.assistant-chip-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--a-muted);
+  margin: 4px 0 8px;
+  align-self: stretch;
+  text-align: left;
+}
+
+/* Ready questions as cards: icon, Malayalam title, the question */
+.assistant-prompts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 8px;
+  align-self: stretch;
+  margin-bottom: 14px;
+}
+
+.assistant-prompt {
+  --tone: #0f3460;
+  --tone-soft: color-mix(in srgb, var(--a-primary) 12%, transparent);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--a-bg);
+  border: 1px solid var(--a-border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.assistant-prompt:hover:not(:disabled) {
+  border-color: var(--tone);
+  box-shadow: 0 4px 14px var(--tone-soft);
+  transform: translateY(-1px);
+}
+
+.assistant-prompt:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.assistant-prompt-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 16px;
+  color: var(--tone);
+  background: var(--tone-soft);
+}
+
+.assistant-prompt-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.assistant-prompt-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.assistant-prompt-question {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--a-muted);
+  margin-top: 1px;
+}
+
+.tone-teal { --tone: #2a9d8f; --tone-soft: rgba(42, 157, 143, 0.13); }
+.tone-amber { --tone: #d97706; --tone-soft: rgba(217, 119, 6, 0.13); }
+.tone-indigo { --tone: #4f46e5; --tone-soft: rgba(79, 70, 229, 0.12); }
+.tone-rose { --tone: #e11d48; --tone-soft: rgba(225, 29, 72, 0.11); }
+.tone-sky { --tone: #0284c7; --tone-soft: rgba(2, 132, 199, 0.12); }
+.tone-violet { --tone: #7c3aed; --tone-soft: rgba(124, 58, 237, 0.12); }
+
+/* Chips: recent questions on the welcome, quick questions below the chat */
+.assistant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: stretch;
+}
+
+.assistant-chip {
+  --tone: var(--a-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  color: inherit;
+  background: var(--a-bg);
+  border: 1px solid var(--a-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.assistant-chip:hover:not(:disabled) {
+  border-color: var(--tone);
+}
+
+.assistant-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.assistant-chip.is-recent {
+  border-style: dashed;
+}
+
+.assistant-chip-icon {
+  color: var(--tone);
+  font-size: 13px;
+}
+
+.assistant-chip.is-recent .assistant-chip-icon {
+  color: var(--a-muted);
+}
+
+/* Bottom: fixed below the messages */
+.assistant-bottom {
+  flex: 0 0 auto;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--a-bg);
+}
+
+.assistant-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -12px 8px;
+  padding: 2px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 24px), transparent);
+}
+
+.assistant-recent-row::-webkit-scrollbar {
+  display: none;
+}
+
+.assistant-recent-row .assistant-chip {
+  white-space: nowrap;
+  flex: 0 0 auto;
+  font-size: 13px;
+  padding: 5px 11px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assistant-limit {
+  margin-bottom: 8px;
+}
+
+/* One card: text, mic, send */
+.assistant-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 6px 6px 6px 8px;
+  border: 1px solid var(--a-border);
+  border-radius: 22px;
+  background: var(--a-bg);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.07);
+  min-height: 50px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.assistant-composer:focus-within {
+  border-color: var(--a-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--a-primary) 12%, transparent), 0 8px 24px rgba(15, 23, 42, 0.07);
+}
+
+.assistant-composer .ant-btn {
+  flex: 0 0 auto;
+}
+
+.assistant-composer .ant-btn-primary {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+}
+
+.assistant-composer .assistant-input.ant-input {
+  flex: 1;
+  min-width: 0;
+  /* 16px: no zoom on focus in iPhone Safari */
+  font-size: 16px;
+  line-height: 1.45;
+  padding: 8px 6px;
+  resize: none;
+  background: transparent;
+}
+
+.assistant-composer.is-recording {
+  align-items: center;
+  padding-left: 14px;
+}
+
+.assistant-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  animation: assistant-pulse 1s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+.assistant-rec-time {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  padding-left: 6px;
+}
+
+.assistant-rec-hint {
+  color: var(--a-muted);
+  font-size: 13px;
+}
+
+@keyframes assistant-pulse {
+  50% { opacity: 0.3; }
+}
+
+.assistant-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--a-muted);
+}
+
+.assistant-auto-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+.assistant-disclaimer {
+  margin: 0 auto;
+  font-size: 11.5px;
+}
+
+@media (max-width: 600px) {
+  .assistant-shell:not(.assistant-embedded) {
+    border-radius: 14px;
+  }
+
+  .assistant-messages {
+    padding: 14px 12px;
+  }
+
+  .assistant-bubble {
+    max-width: 88%;
+  }
+
+  .assistant-bottom {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .assistant-empty-title {
+    font-size: 20px;
+  }
+
+  /* Phones: the ready questions as a 2-column grid of short titles, so all
+     of them fit above the composer; the full question goes when tapped. */
+  .assistant-prompts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .assistant-prompt {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .assistant-prompt-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+
+  .assistant-prompt-label {
+    font-size: 13.5px;
+  }
+
+  .assistant-prompt-question {
+    display: none;
+  }
+
+  .assistant-empty-avatar {
+    margin-bottom: 10px;
+  }
+
+  .assistant-empty-text {
+    font-size: 13.5px;
+    margin-bottom: 14px;
+  }
+}
+
+/* Little room - a phone with the keyboard open: the composer stays, the
+   extras below the messages go. */
+.assistant-shell.is-tight .assistant-recent-row,
+.assistant-shell.is-tight .assistant-meta {
+  display: none;
+}
+
+.assistant-shell.is-tight .assistant-head {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-prompt {
+    transition: none;
+  }
+}
+
+/* Tables and charts in answers (AssistantAnswer.tsx): the bubble takes the
+   full width, the table scrolls sideways inside it on a phone. */
+.assistant-bubble.is-wide {
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.assistant-table-wrap {
+  margin: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--a-border);
+  border-radius: 12px;
+}
+
+.assistant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: normal;
+}
+
+.assistant-table th,
+.assistant-table td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Names and months wrap; amounts never do, so on a phone every column stays
+   in view and a number is never broken across lines. */
+.assistant-table td:not(.is-num) {
+  overflow-wrap: break-word;
+  min-width: 72px;
+}
+
+.assistant-table th {
+  background: color-mix(in srgb, var(--a-primary) 8%, transparent);
+  color: var(--a-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.assistant-table td {
+  border-top: 1px solid var(--a-border);
+}
+
+.assistant-table tbody tr:nth-child(even) td {
+  background: rgba(127, 127, 127, 0.04);
+}
+
+.assistant-table .is-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  /* A wide answer gets the avatar's room too. */
+  .assistant-row.is-assistant:has(.assistant-bubble.is-wide) .assistant-avatar {
+    display: none;
+  }
+  .assistant-table {
+    font-size: 13px;
+  }
+}
+
+.assistant-table tr.is-total td {
+  font-weight: 600;
+  border-top: 2px solid var(--a-primary);
+}
+
+.assistant-chart {
+  margin: 8px 0;
+  padding: 10px 6px 6px;
+  border: 1px solid var(--a-border);
+  border-radius: 12px;
+}
+
+.assistant-chart figcaption {
+  padding: 0 8px 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Under an answer: its buttons on the left, its time on the right. */
+.assistant-answer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.assistant-answer-foot .assistant-time {
+  margin-left: auto;
+}
+/* A message's time (MessageTime): small, muted; tap for the full date. */
+.assistant-time {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--a-muted);
+  text-align: right;
+  cursor: pointer;
+  user-select: none;
+}
+.assistant-bubble.is-user .assistant-time {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* Copy / image / print under an answer (AnswerActions.tsx). */
+.assistant-answer-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+  margin-left: -6px;
+}
+.assistant-answer-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--a-muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+.assistant-answer-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--a-primary) 10%, transparent);
+  color: var(--a-primary);
+}
+.assistant-answer-actions button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* Printing one answer (AnswerActions.tsx): a copy of it sits in
+   .kmcc-print-holder under <body>; everything else is left out of the print. */
+.kmcc-print-holder {
+  display: none;
+}
+@media print {
+  html:has(body.kmcc-print-answer),
+  body.kmcc-print-answer {
+    background: #fff !important;
+    color-scheme: light;
+  }
+  body.kmcc-print-answer > *:not(.kmcc-print-holder) {
+    display: none !important;
+  }
+  body.kmcc-print-answer > .kmcc-print-holder {
+    display: block;
+    position: static;
+    height: auto;
+    min-height: 0;
+    max-width: 720px;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+    background: #fff;
+  }
+  /* TransactionReceipt.css hides "body *" for every print; not
+     !important, so the chart's own hidden parts (inline) stay hidden. */
+  .kmcc-print-holder,
+  .kmcc-print-holder * {
+    visibility: visible;
+  }
+  .kmcc-print-holder .assistant-bubble {
+    max-width: none;
+    box-shadow: none;
+    background: #fff;
+    color: #000;
+  }
+  .kmcc-print-holder .assistant-answer-actions,
+  .kmcc-print-holder .recharts-tooltip-wrapper {
+    display: none !important;
+  }
+}
