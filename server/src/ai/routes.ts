@@ -205,8 +205,9 @@ function duesView(d: Dues, year: number) {
 
 async function memberSummary(m: MemberRow) {
   const year = yearMonthOf(new Date()).year;
-  const [sums, loans, dues] = await Promise.all([
+  const [sums, rows, loans, dues] = await Promise.all([
     prisma.transaction.groupBy({ by: ['category', 'flow'], where: { memberId: m.id }, _sum: { amount: true }, _count: true }),
+    prisma.transaction.findMany({ where: { memberId: m.id }, select: { date: true, category: true, flow: true, amount: true, description: true }, orderBy: { date: 'asc' } }),
     prisma.loan.findMany({ where: { memberId: m.id }, orderBy: { disbursedDate: 'desc' } }),
     m.isSavingMember ? duesFor([m], year) : Promise.resolve([]),
   ]);
@@ -218,17 +219,68 @@ async function memberSummary(m: MemberRow) {
   const debited = (category: string) => amountOf(category, 'EXPENSE');
   const totalCredit = amountOf(null, 'INCOME');
   const totalDebit = amountOf(null, 'EXPENSE');
-  // Savings paid out: the Savings Withdrawal category, and older withdrawals
-  // recorded as a Saving entry with the Withdrawal (debit) flow - that
-  // category came later (July 2026).
-  const deposited = credited('SAVING_DEPOSIT');
-  const withdrawn = debited('SAVING_WITHDRAWAL').plus(debited('SAVING_DEPOSIT'));
   const active = loans.filter((l) => l.status === 'ACTIVE');
   const count = sums.reduce((t, x) => t + x._count, 0);
+  // The member's savings, entry by entry. KMCC's books (imported from the old
+  // sheets) file each year's profit and the 2017 opening balance under Saving,
+  // told apart only by the description ("Profit 2024", "opening balance
+  // 2017"), so a Saving credit is read by its description: profit, an opening
+  // balance, or a contribution. Withdrawals: the Savings Withdrawal category,
+  // and older ones entered as a Saving debit (that category came in July 2026).
+  type Totals = { opening: Decimal; contributed: Decimal; profit: Decimal; withdrawn: Decimal; credited: Decimal; debited: Decimal; transactions: number };
+  const zero = (): Totals => ({ opening: new Decimal(0), contributed: new Decimal(0), profit: new Decimal(0), withdrawn: new Decimal(0), credited: new Decimal(0), debited: new Decimal(0), transactions: 0 });
+  const all = zero();
+  const years = new Map<number, Totals>();
+  let profitEnteredAsSaving = new Decimal(0);
+  for (const r of rows) {
+    const y = yearMonthOf(r.date).year;
+    const e = years.get(y) ?? zero();
+    const amount = new Decimal(r.amount);
+    const add = (field: 'opening' | 'contributed' | 'profit' | 'withdrawn', value: Decimal) => {
+      e[field] = e[field].plus(value);
+      all[field] = all[field].plus(value);
+    };
+    const credit = r.flow === 'INCOME';
+    if (credit) e.credited = e.credited.plus(amount);
+    else e.debited = e.debited.plus(amount);
+    if (r.category === 'PROFIT') add('profit', credit ? amount : amount.negated());
+    else if (r.category === 'SAVING_DEPOSIT' && credit) {
+      if (/profit|ലാഭ/i.test(r.description)) {
+        add('profit', amount);
+        profitEnteredAsSaving = profitEnteredAsSaving.plus(amount);
+      } else if (/opening/i.test(r.description)) add('opening', amount);
+      else add('contributed', amount);
+    } else if (r.category === 'SAVING_WITHDRAWAL' || r.category === 'SAVING_DEPOSIT') add('withdrawn', credit ? amount.negated() : amount);
+    e.transactions++;
+    years.set(y, e);
+  }
+  const savingsBalance = all.opening.plus(all.contributed).plus(all.profit).minus(all.withdrawn);
+  // The biggest entries with their descriptions, to show what each was.
+  const largest = [...rows].sort((a, b) => new Decimal(b.amount).comparedTo(a.amount)).slice(0, 10);
   return {
     member: nameOf(m),
     type: typeOf(m),
     joined: dayOf(m.joinDate),
+    savings: {
+      openingBalance: money(all.opening),
+      contributed: money(all.contributed),
+      profitCredited: money(all.profit),
+      withdrawn: money(all.withdrawn),
+      savingsBalance: money(savingsBalance),
+      note:
+        'savingsBalance = opening balance + contributions + profit - withdrawals. Profit and opening balances entered under the Saving category are counted from their descriptions ("Profit 2024", "opening balance 2017")' +
+        (profitEnteredAsSaving.gt(0) ? ` - ₹${money(profitEnteredAsSaving)} of this member's profit was entered that way.` : '.'),
+    },
+    byYear: [...years.entries()].map(([year, e]) => ({
+      year,
+      ...(e.opening.gt(0) ? { openingBalance: money(e.opening) } : {}),
+      contributed: money(e.contributed),
+      profitCredited: money(e.profit),
+      withdrawn: money(e.withdrawn),
+      credited: money(e.credited),
+      debited: money(e.debited),
+      transactions: e.transactions,
+    })),
     // The member's statement, as on their Profile page and PDF: every
     // transaction, credits minus debits = the Profile "Balance".
     statement: {
@@ -236,14 +288,15 @@ async function memberSummary(m: MemberRow) {
       totalCredit: money(totalCredit),
       totalDebit: money(totalDebit),
       balance: money(totalCredit.minus(totalDebit)),
-      note: 'credit = money received for the member (savings deposits, profit, interest, loan repayments); debit = money paid out to them (withdrawals, loans given). balance = the Balance on their Profile page.',
+      note: 'credit = money received for the member (savings, profit, interest, loan repayments); debit = money paid out to them (withdrawals, loans given). balance = the Balance on their Profile page.',
     },
-    savings: {
-      deposited: money(deposited),
-      withdrawn: money(withdrawn),
-      savingsBalance: money(deposited.minus(withdrawn)),
-    },
-    profitCredited: money(credited('PROFIT').minus(debited('PROFIT'))),
+    largestEntries: largest.map((r) => ({
+      date: dayOf(r.date),
+      category: CATEGORY_LABELS[r.category],
+      flow: FLOW_LABELS[r.flow],
+      amount: money(r.amount),
+      ...(r.description ? { description: r.description } : {}),
+    })),
     interest: { credited: money(credited('INTEREST')), debited: money(debited('INTEREST')) },
     zakat: { credited: money(credited('ZAKAT')), debited: money(debited('ZAKAT')) },
     byCategory: [...new Set(sums.map((x) => x.category))].map((c) => ({

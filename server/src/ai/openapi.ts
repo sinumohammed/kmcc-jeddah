@@ -30,13 +30,13 @@ export const AI_OPENAPI = {
     '/ai/me': {
       get: {
         operationId: 'me',
-        summary: 'The asking user\'s own account, as on their Profile statement: total savings deposited, total withdrawn, savings balance, profit credited, interest, credits / debits / balance, this year\'s monthly dues (paid and pending months), loans - for "my savings", "my profit", "how much have I withdrawn", "my dues", "my loan"',
+        summary: 'The asking user\'s own account, as on their Profile statement: opening balance, total contributed, profit credited, total withdrawn, current savings balance, each year\'s contribution and profit, interest, credits / debits / balance, this year\'s monthly dues (paid and pending months), loans - for "my savings", "my profit", "how much have I withdrawn", "my dues", "my loan"',
       },
     },
     '/ai/member-summary': {
       get: {
         operationId: 'member_summary',
-        summary: 'One member\'s account, as on their Profile statement - the right call for a member\'s totals: total savings deposited, total withdrawn, savings balance, profit credited, interest, zakat, loans given and repaid, credits / debits / balance, every category\'s credited and debited total, this year\'s dues. ("how much has Basheer saved", "profit credited to KMCC0012", "how much did he withdraw"). The admin can look up any member (search); a member only themselves',
+        summary: 'One member\'s account, as on their Profile statement - the right call for a member\'s totals: opening balance, total contributed, profit credited, total withdrawn, current savings balance, interest, zakat, loans given and repaid, credits / debits / balance, every category\'s credited and debited total, a year-by-year breakdown (contributed, profit and withdrawn each year), the largest entries with their descriptions, this year\'s dues. ("each year\'s profit", "how much has Basheer saved", "profit credited to KMCC0012", "how much did he withdraw"). The admin can look up any member (search); a member only themselves',
         parameters: [search("the asking member's own")],
       },
     },
