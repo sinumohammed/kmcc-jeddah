@@ -64,8 +64,19 @@ const CATEGORY_LABELS: Record<string, string> = {
   ZAKAT: 'Zakat',
 };
 const CATEGORIES = Object.keys(CATEGORY_LABELS);
-// INCOME = money coming in to KMCC (a member's deposit, a repayment); EXPENSE = going out.
-const FLOW_LABELS = { INCOME: 'in', EXPENSE: 'out' } as const;
+// The app's two flows, as the member's Profile statement and PDF show them:
+// INCOME = Credit (money received: a deposit, a repayment, profit credited to
+// the member), EXPENSE = Debit (money paid out: a withdrawal, a loan given, an
+// expense). "in"/"out" read wrongly for profit credited to a member.
+const FLOW_LABELS = { INCOME: 'credit', EXPENSE: 'debit' } as const;
+// The flow filter: credit/debit, or in/out as before.
+const flowParam = (value: unknown) => {
+  const f = String(value ?? '').toLowerCase();
+  if (!f) return null;
+  if (['credit', 'in'].includes(f)) return 'INCOME' as const;
+  if (['debit', 'out'].includes(f)) return 'EXPENSE' as const;
+  throw badRequest('flow: "credit" (in) or "debit" (out)');
+};
 
 const clampInt = (value: unknown, min: number, max: number, fallback: number) => Math.min(Math.max(parseInt(String(value ?? ''), 10) || fallback, min), max);
 const isDay = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
@@ -199,28 +210,51 @@ async function memberSummary(m: MemberRow) {
     prisma.loan.findMany({ where: { memberId: m.id }, orderBy: { disbursedDate: 'desc' } }),
     m.isSavingMember ? duesFor([m], year) : Promise.resolve([]),
   ]);
-  const sumOf = (category: string, flow?: string) =>
-    sums.filter((s) => s.category === category && (!flow || s.flow === flow)).reduce((t, s) => t.plus(new Decimal(s._sum.amount ?? 0)), new Decimal(0));
-  const allIn = sums.filter((s) => s.flow === 'INCOME').reduce((t, s) => t.plus(new Decimal(s._sum.amount ?? 0)), new Decimal(0));
-  const allOut = sums.filter((s) => s.flow === 'EXPENSE').reduce((t, s) => t.plus(new Decimal(s._sum.amount ?? 0)), new Decimal(0));
-  const deposited = sumOf('SAVING_DEPOSIT', 'INCOME');
-  const withdrawn = sumOf('SAVING_WITHDRAWAL');
+  const amountOf = (category: string | null, flow: 'INCOME' | 'EXPENSE') =>
+    sums
+      .filter((x) => (!category || x.category === category) && x.flow === flow)
+      .reduce((t, x) => t.plus(new Decimal(x._sum.amount ?? 0)), new Decimal(0));
+  const credited = (category: string) => amountOf(category, 'INCOME');
+  const debited = (category: string) => amountOf(category, 'EXPENSE');
+  const totalCredit = amountOf(null, 'INCOME');
+  const totalDebit = amountOf(null, 'EXPENSE');
+  // Savings paid out: the Savings Withdrawal category, and older withdrawals
+  // recorded as a Saving entry with the Withdrawal (debit) flow - that
+  // category came later (July 2026).
+  const deposited = credited('SAVING_DEPOSIT');
+  const withdrawn = debited('SAVING_WITHDRAWAL').plus(debited('SAVING_DEPOSIT'));
   const active = loans.filter((l) => l.status === 'ACTIVE');
+  const count = sums.reduce((t, x) => t + x._count, 0);
   return {
     member: nameOf(m),
     type: typeOf(m),
     joined: dayOf(m.joinDate),
+    // The member's statement, as on their Profile page and PDF: every
+    // transaction, credits minus debits = the Profile "Balance".
+    statement: {
+      transactions: count,
+      totalCredit: money(totalCredit),
+      totalDebit: money(totalDebit),
+      balance: money(totalCredit.minus(totalDebit)),
+      note: 'credit = money received for the member (savings deposits, profit, interest, loan repayments); debit = money paid out to them (withdrawals, loans given). balance = the Balance on their Profile page.',
+    },
     savings: {
       deposited: money(deposited),
       withdrawn: money(withdrawn),
       savingsBalance: money(deposited.minus(withdrawn)),
     },
-    // The "Balance" on the member's Profile page: everything in minus everything out.
-    profileBalance: money(allIn.minus(allOut)),
-    totalsByCategory: sums
-      .filter((s) => !new Decimal(s._sum.amount ?? 0).isZero())
-      .map((s) => ({ category: CATEGORY_LABELS[s.category], flow: FLOW_LABELS[s.flow], amount: money(s._sum.amount), transactions: s._count })),
+    profitCredited: money(credited('PROFIT').minus(debited('PROFIT'))),
+    interest: { credited: money(credited('INTEREST')), debited: money(debited('INTEREST')) },
+    zakat: { credited: money(credited('ZAKAT')), debited: money(debited('ZAKAT')) },
+    byCategory: [...new Set(sums.map((x) => x.category))].map((c) => ({
+      category: CATEGORY_LABELS[c],
+      credited: money(credited(c)),
+      debited: money(debited(c)),
+      transactions: sums.filter((x) => x.category === c).reduce((t, x) => t + x._count, 0),
+    })),
     loans: {
+      loanGiven: money(debited('LOAN_DISBURSEMENT')),
+      repaid: money(credited('LOAN_REPAYMENT')),
       activeLoanBalance: money(active.reduce((t, l) => t.plus(new Decimal(l.balance)), new Decimal(0))),
       active: active.map((l) => ({ principal: money(l.principalAmount), balance: money(l.balance), repaid: money(new Decimal(l.principalAmount).minus(l.balance)), disbursed: dayOf(l.disbursedDate) })),
       closedLoans: loans.length - active.length,
@@ -381,11 +415,8 @@ aiGet('/transactions', async (req) => {
     if (bad.length) throw badRequest(`category: one or more of ${CATEGORIES.join(', ')}`);
     where.category = { in: wanted };
   }
-  const flow = String(req.query.flow ?? '').toLowerCase();
-  if (flow) {
-    if (!['in', 'out'].includes(flow)) throw badRequest('flow: "in" or "out"');
-    where.flow = flow === 'in' ? 'INCOME' : 'EXPENSE';
-  }
+  const flow = flowParam(req.query.flow);
+  if (flow) where.flow = flow;
   const date = dateRange(req);
   if (date) where.date = date;
   const limit = clampInt(req.query.limit, 1, 100, 20);
@@ -403,8 +434,8 @@ aiGet('/transactions', async (req) => {
   return inRupees({
     ...(req.aiUser.isAdmin ? {} : { scope: ONLY_YOURS('transactions') }),
     matching: count,
-    totalIn: total('INCOME'),
-    totalOut: total('EXPENSE'),
+    totalCredit: total('INCOME'),
+    totalDebit: total('EXPENSE'),
     ...(count > rows.length ? { note: `The newest ${rows.length} of ${count} are listed; the totals cover all ${count}.` } : {}),
     transactions: rows.map((t) => ({
       date: dayOf(t.date),
@@ -483,12 +514,11 @@ aiGet('/banks', async (req) => {
 
 aiGet('/flow-by-category', async (req) => {
   adminOnly(req, "KMCC's inflow and outflow");
-  const flow = String(req.query.flow ?? 'out').toLowerCase();
-  if (!['in', 'out'].includes(flow)) throw badRequest('flow: "in" or "out"');
+  const flow = flowParam(req.query.flow) ?? 'EXPENSE';
   const date = dateRange(req);
-  const rows = await flowSummary(flow === 'in' ? 'INCOME' : 'EXPENSE', date);
+  const rows = await flowSummary(flow, date);
   return inRupees({
-    flow,
+    flow: FLOW_LABELS[flow],
     from: req.query.from ?? 'the start',
     to: req.query.to ?? 'today',
     total: money(rows.reduce((t, r) => t.plus(r.amount), new Decimal(0))),

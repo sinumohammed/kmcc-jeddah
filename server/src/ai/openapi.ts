@@ -30,13 +30,13 @@ export const AI_OPENAPI = {
     '/ai/me': {
       get: {
         operationId: 'me',
-        summary: 'The asking user: name, member code, role, savings balance, this year\'s monthly dues (paid and pending months), active loan balance and totals per category - for questions about "me", "my savings", "my dues", "my loan"',
+        summary: 'The asking user\'s own account, as on their Profile statement: total savings deposited, total withdrawn, savings balance, profit credited, interest, credits / debits / balance, this year\'s monthly dues (paid and pending months), loans - for "my savings", "my profit", "how much have I withdrawn", "my dues", "my loan"',
       },
     },
     '/ai/member-summary': {
       get: {
         operationId: 'member_summary',
-        summary: 'One member\'s full picture: savings deposited, withdrawn and balance, Profile balance, this year\'s dues, active loans, totals per category. The admin can look up any member (search); a member only themselves',
+        summary: 'One member\'s account, as on their Profile statement - the right call for a member\'s totals: total savings deposited, total withdrawn, savings balance, profit credited, interest, zakat, loans given and repaid, credits / debits / balance, every category\'s credited and debited total, this year\'s dues. ("how much has Basheer saved", "profit credited to KMCC0012", "how much did he withdraw"). The admin can look up any member (search); a member only themselves',
         parameters: [search("the asking member's own")],
       },
     },
@@ -67,11 +67,11 @@ export const AI_OPENAPI = {
     '/ai/transactions': {
       get: {
         operationId: 'transactions',
-        summary: 'Transactions, newest first: date, member, category, in or out, amount, description, with the count and totals of all that match - "my payments this year", "deposits of Basheer", "zakat paid in 2025". A member only their own',
+        summary: 'Transactions, newest first: date, member, category, credit or debit, amount, description, with the count and the credit / debit totals of all that match (for one member\'s totals use member_summary) - "my payments this year", "deposits of Basheer", "zakat paid in 2025". A member only their own',
         parameters: [
           search("every member's (admin) or the asking member's own"),
           { name: 'category', in: 'query', required: false, description: 'One or more, comma-separated: SAVING_DEPOSIT, SAVING_WITHDRAWAL, LOAN_DISBURSEMENT (loan given), LOAN_REPAYMENT, PROFIT, INTEREST, ZAKAT, EXPENSE', schema: { type: 'string' } },
-          { name: 'flow', in: 'query', required: false, description: 'in = money coming in to KMCC (deposits, repayments), out = money going out (loans given, withdrawals, expenses)', schema: { type: 'string', enum: ['in', 'out'] } },
+          { name: 'flow', in: 'query', required: false, description: 'credit = money received (savings deposits, profit credited, repayments), debit = money paid out (withdrawals, loans given, expenses) - as on the member statement', schema: { type: 'string', enum: ['credit', 'debit'] } },
           { name: 'from', in: 'query', required: false, description: 'First day YYYY-MM-DD', schema: date('First day') },
           { name: 'to', in: 'query', required: false, description: 'Last day YYYY-MM-DD', schema: date('Last day') },
           { name: 'limit', in: 'query', required: false, description: 'How many to list, 1-100 (default 20); the totals always cover all that match', schema: { type: 'integer' } },
@@ -105,7 +105,7 @@ export const AI_OPENAPI = {
         operationId: 'flow_by_category',
         summary: 'All money in or all money out, totalled per category, for a period (admin only) - "what did KMCC spend on this year", "income by category"',
         parameters: [
-          { name: 'flow', in: 'query', required: false, description: 'in or out (default out)', schema: { type: 'string', enum: ['in', 'out'] } },
+          { name: 'flow', in: 'query', required: false, description: 'credit (money received) or debit (money paid out, the default)', schema: { type: 'string', enum: ['credit', 'debit'] } },
           { name: 'from', in: 'query', required: false, description: 'First day YYYY-MM-DD (default: from the start)', schema: date('First day') },
           { name: 'to', in: 'query', required: false, description: 'Last day YYYY-MM-DD (default: today)', schema: date('Last day') },
         ],
