@@ -24,3 +24,16 @@ body {
   font-size: 13px;
 }
 .new-version-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Phones: every text field at 16px - iPhone Safari zooms into a smaller one when it is tapped and
+   stays zoomed, wider than the screen (found in use: the "Ask a person" note and the write-back box). */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-number-input,
+  .ant-select-selection-search-input {
+    font-size: 16px !important;
+  }
+}
