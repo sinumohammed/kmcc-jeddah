@@ -131,7 +131,7 @@ export async function askAssistant({ user, question, conversationId, display }: 
         conversationId,
         mode: 'multi',
         agent: 'connected_apps',
-        user: { token: aiUserToken(user), ref: aiUserRef(user) },
+        user: { token: aiUserToken(user), ref: aiUserRef(user), role: user.role === 'ADMIN' ? 'admin' : 'member' },
         ...(display ? { display } : {}),
       }),
       // The AI may wait for this server's own /api/ai/* calls (a cold start of this server).
