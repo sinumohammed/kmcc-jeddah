@@ -20,6 +20,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { aiUserToken, aiUserRef, Asker } from './aiUser';
 import { today } from './time';
+import { HANDOVER_PERSON, listHandovers } from './handover';
 
 const AI_ASK_URL = process.env.AI_ASK_URL;
 const AI_ASK_KEY = process.env.AI_ASK_KEY;
@@ -137,11 +138,22 @@ export async function askAssistant({ user, question, conversationId, display }: 
       // The AI may wait for this server's own /api/ai/* calls (a cold start of this server).
       signal: AbortSignal.timeout(120000),
     });
-    const data = (await aiRes.json().catch(() => ({}))) as { answer?: string; error?: string; sources?: { n: number; source: string; section?: string }[] };
+    const data = (await aiRes.json().catch(() => ({}))) as {
+      answer?: string;
+      error?: string;
+      sources?: { n: number; source: string; section?: string }[];
+      handover?: { offer?: boolean; reason?: string };
+    };
     if (!aiRes.ok) return giveBack(aiRes.status === 429 ? 429 : 502, { error: data.error ?? 'The assistant could not answer - please try again' });
     return {
       status: 200,
-      body: { answer: data.answer, sources: (data.sources ?? []).map((s) => ({ n: s.n, source: s.source, section: s.section })), ...remainingOf(usage, taken) },
+      body: {
+        answer: data.answer,
+        sources: (data.sources ?? []).map((s) => ({ n: s.n, source: s.source, section: s.section })),
+        // offer: nothing in KMCC's data answered it - the chat offers "Ask a person" (handover.ts).
+        handover: { offer: Boolean(data.handover?.offer), reason: data.handover?.reason },
+        ...remainingOf(usage, taken),
+      },
     };
   } catch (error) {
     return giveBack(502, { error: (error as Error).name === 'TimeoutError' ? 'The assistant took too long - please try again' : 'The assistant could not be reached' });
@@ -187,16 +199,20 @@ router.use(requireAuth);
 
 // `askingAs`: which login the chat answers for - shown in the chat, so a
 // member's view ("only my dues") is never mistaken for the admin's.
+// `handover`: who answers "Ask a person" and how many of their replies are
+// unread (the dot on the Assistant); newReplies null when the AI service could not be asked.
 router.get('/status', async (req, res) => {
   if (!assistantAvailable()) return res.json({ available: false });
   const user = await currentAsker(req.user!.memberId);
   if (!user) return res.json({ available: false });
   const usage = await usageFor(user);
   const askingAs = { role: user.role === 'ADMIN' ? 'admin' : 'member', memberCode: user.memberCode, name: user.name };
+  const replies = await listHandovers(user);
+  const handover = { person: HANDOVER_PERSON, newReplies: replies.status === 200 ? Number(replies.body.newReplies ?? 0) : null };
   try {
-    res.json({ available: true, askingAs, ...remainingOf(usage, await usedToday(usage)) });
+    res.json({ available: true, askingAs, handover, ...remainingOf(usage, await usedToday(usage)) });
   } catch {
-    res.json({ available: true, askingAs, limit: usage.limit, remaining: null });
+    res.json({ available: true, askingAs, handover, limit: usage.limit, remaining: null });
   }
 });
 

@@ -173,6 +173,11 @@ Under an answer: Copy copies the text (tables paste into a spreadsheet), Save as
 ## Start a new chat
 Tap the clear button at the top of the Assistant and confirm. The Assistant then forgets the earlier questions.
 
+## Ask a person
+When the Assistant cannot find the answer in the KMCC records, tap Ask a person under its answer. Check the question, add a note if you like, then tap Send. Sino reads your question and this chat and replies in the Assistant.
+To ask Sino something directly: Assistant > the headset button at the top > Ask Sino a new question.
+A new reply shows as a count on the round Assistant button and comes into the chat. The headset button lists everything you sent, with its status - Waiting, Answered or Closed. Open one to read the whole conversation and write back.
+
 # Telegram
 
 ## Ask the Assistant on Telegram
@@ -181,9 +186,12 @@ Link it: Settings > Telegram > Link my Telegram > Open Telegram, then press Star
 Or open the KMCC bot in Telegram and share your phone number when it asks - it must be the mobile number on your member record.
 Voice messages work too.
 
+## Ask a person on Telegram
+After an answer that did not help, send /person in the bot (you can add a note after it: /person I cannot find my 2023 profit). Sino's reply comes in the bot and in the app's Assistant. To write back: /reply and your message.
+
 ## Unlink Telegram
 Settings > Telegram > the red unlink button next to the account, then Unlink. The bot no longer answers that account.
 
 ## Set up the bot
 Roles: admin
-Settings > Telegram shows whether the bot is connected and how many accounts are linked. If it says Telegram does not send the messages here, tap Connect the bot.
+Settings > Telegram shows whether the bot is connected and how many accounts are linked. If it says Telegram does not send the messages here, tap Connect the bot. Tap it again after an update to show new commands, such as /person, in the bot's menu.

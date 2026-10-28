@@ -12,6 +12,8 @@
 //     account itself (we check contact.user_id), matched to the member's
 //     mobile number. Members only: the admin links from the app.
 // Voice notes are turned into text (transcribeAudio), shown back, then asked.
+// "Ask a person" (handover.ts): /person after an answer that did not help, and
+// the person's reply comes back here (notifyMember).
 // Only private chats are answered: in a group, everyone would see the answer.
 //
 // Set up: TELEGRAM_BOT_TOKEN (from @BotFather), then the admin presses
@@ -29,6 +31,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { assistantAvailable, askAssistant, currentAsker, usageFor, usedToday, transcribeAudio, forgetConversation, VOICE_LANGUAGES } from './assistant';
 import type { Asker } from './aiUser';
+import { HANDOVER_PERSON, createHandover, listHandovers, writeToPerson } from './handover';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 // The eval points this at a fake Telegram.
@@ -136,6 +139,8 @@ const HELP = [
   '/whoami - who you are asking as',
   '/new - start a new conversation',
   '/voice - the language of your voice notes',
+  '/person - send your last question to a person (Sino), who replies here',
+  '/reply - write to the person about your last request',
   '/unlink - stop asking as your KMCC login',
 ].join('\n');
 const NOT_LINKED =
@@ -237,6 +242,10 @@ async function command(chatId: number, telegramId: string, from: From, text: str
     await prisma.channelLink.deleteMany({ where: { channel: CHANNEL, externalId: telegramId } });
     return reply(chatId, user ? 'Unlinked. /start to link again.' : 'This account was not linked.');
   }
+  if (cmd === 'person' || cmd === 'reply') {
+    if (!user) return reply(chatId, NOT_LINKED, { reply_markup: SHARE_PHONE_KEYBOARD });
+    return cmd === 'person' ? toPerson(chatId, user, arg) : replyToPerson(chatId, user, arg);
+  }
   if (cmd === 'voice') {
     const language = VOICE_LANGUAGES.find((l) => l.toLowerCase() === arg.toLowerCase());
     if (!language) {
@@ -252,6 +261,45 @@ async function command(chatId: number, telegramId: string, from: From, text: str
   return reply(chatId, HELP);
 }
 
+// /person [note]: the last question of this Telegram conversation to a person.
+async function toPerson(chatId: number, user: Asker & { name: string }, note: string) {
+  if (note.length > 2000) return reply(chatId, 'Please write up to 2000 characters.');
+  const { status, body } = await createHandover(user, { conversationId: conversationOf(user), note: note || undefined });
+  if (status === 400 && /question/i.test(String(body.error ?? ''))) return reply(chatId, 'Ask your question first, then send /person to pass it to a person.');
+  if (status !== 200) return reply(chatId, String(body.error ?? 'Could not reach a person just now - please try again.'));
+  return reply(chatId, `✅ Sent to ${HANDOVER_PERSON}: “${body.question}”\n\nThe reply will come here and in the KMCC app's Assistant. To add something: /reply your message`);
+}
+
+// /reply <text>: to the person, on the newest request that is not closed.
+async function replyToPerson(chatId: number, user: Asker, text: string) {
+  if (!text) return reply(chatId, 'Write your message after /reply, for example: /reply I found it, thank you');
+  if (text.length > 2000) return reply(chatId, 'Please write up to 2000 characters.');
+  const list = await listHandovers(user);
+  if (list.status !== 200) return reply(chatId, String(list.body.error ?? 'Could not reach a person just now - please try again.'));
+  const tickets = (list.body.tickets ?? []) as { id: number; status: string; question: string }[];
+  const ticket = tickets.find((t) => t.status !== 'closed') ?? tickets[0];
+  if (!ticket) return reply(chatId, `You have not asked ${HANDOVER_PERSON} anything yet - ask your question, then send /person.`);
+  const { status, body } = await writeToPerson(user, ticket.id, text);
+  if (status !== 200) return reply(chatId, String(body.error ?? 'Could not reach a person just now - please try again.'));
+  return reply(chatId, `✅ Sent to ${HANDOVER_PERSON}, about “${ticket.question}”.`);
+}
+
+// The person replied (handoverRoutes.ts): to every Telegram account linked to that member. The count sent.
+export async function notifyMember(memberId: string, { question, text }: { question?: string; text: string }) {
+  if (!TOKEN) return 0;
+  const links = await prisma.channelLink.findMany({ where: { channel: CHANNEL, memberId } });
+  let sent = 0;
+  for (const l of links) {
+    try {
+      await reply(Number(l.externalId), `💬 **${HANDOVER_PERSON} replied**${question ? ` about “${question}”` : ''}:\n\n${text}\n\nTo write back: /reply your message`);
+      sent++;
+    } catch (error) {
+      console.warn(`Telegram: could not pass a reply on to ${l.externalId}: ${(error as Error).message}`);
+    }
+  }
+  return sent;
+}
+
 // A question (typed, or a voice note's text) to the assistant.
 async function ask(chatId: number, user: Asker, question: string) {
   // "typing..." lasts 5 seconds; keep it up while the answer is made.
@@ -264,7 +312,9 @@ async function ask(chatId: number, user: Asker, question: string) {
     const sources = [...new Set(((body.sources ?? []) as { source?: string }[]).map((s) => s.source).filter(Boolean))];
     // Said only when it is nearly used up.
     const left = body.limit && Number(body.remaining) <= 1 ? `\n\n(${body.remaining} of ${body.limit} questions left today)` : '';
-    await reply(chatId, `${body.answer}${sources.length ? `\n\nSource: ${sources.join(', ')}` : ''}${left}`.trim());
+    // Nothing in KMCC's data for it: it can go to a person.
+    const person = (body.handover as { offer?: boolean } | undefined)?.offer ? `\n\nNot what you needed? Send /person and ${HANDOVER_PERSON} will reply here.` : '';
+    await reply(chatId, `${body.answer}${sources.length ? `\n\nSource: ${sources.join(', ')}` : ''}${left}${person}`.trim());
   } finally {
     clearInterval(timer);
   }
@@ -398,6 +448,8 @@ router.post('/admin/webhook', requireAuth, requireAdmin, async (req, res) => {
         { command: 'whoami', description: 'Who you are asking as' },
         { command: 'new', description: 'Start a new conversation' },
         { command: 'voice', description: 'The language of your voice notes' },
+        { command: 'person', description: 'Send your last question to a person' },
+        { command: 'reply', description: 'Write to the person about your request' },
         { command: 'unlink', description: 'Stop asking as your KMCC login' },
         { command: 'help', description: 'What I can do' },
       ],

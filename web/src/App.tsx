@@ -10,6 +10,7 @@ import { Transactions } from './pages/Transactions';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
 import { Assistant } from './pages/Assistant';
+import NewVersionBar from './components/NewVersionBar';
 import { useAuthStore } from './store/auth';
 import { useThemeStore } from './store/theme';
 
@@ -46,6 +47,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <NewVersionBar />
     </ConfigProvider>
   );
 }

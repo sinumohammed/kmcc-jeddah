@@ -1,5 +1,6 @@
-import { lazy, Suspense, useState } from 'react';
-import { Drawer, Grid } from 'antd';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Badge, Drawer, Grid } from 'antd';
+import { getAssistantStatus } from '../../api/assistant';
 import { Loader } from '../Loader';
 import AssistantIcon from './AssistantIcon';
 import './AssistantLauncher.css';
@@ -12,12 +13,29 @@ const AssistantChat = lazy(() => import('./AssistantChat'));
 export function AssistantLauncher() {
   const [open, setOpen] = useState(false);
   const isMobile = !Grid.useBreakpoint().sm;
+  // Unread replies to "Ask a person" (AskPerson.tsx): a count on the button. Asked again when the
+  // app comes back into view and when the chat is closed (it reads them while open).
+  const [replies, setReplies] = useState(0);
+  useEffect(() => {
+    if (open) return undefined;
+    let cancelled = false;
+    const check = () => getAssistantStatus().then((s) => !cancelled && setReplies(s.handover?.newReplies ?? 0)).catch(() => {});
+    check();
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [open]);
 
   return (
     <>
       <button type="button" className="assistant-launcher" onClick={() => setOpen(true)} aria-label="Ask the KMCC assistant" title="Ask the KMCC assistant">
-        <AssistantIcon size={38} bare />
-        <span className="assistant-launcher-label">Ask Assistant</span>
+        <Badge count={replies} size="small" offset={[-4, 4]}>
+          <AssistantIcon size={38} bare />
+        </Badge>
+        <span className="assistant-launcher-label">{replies ? 'New reply' : 'Ask Assistant'}</span>
       </button>
       <Drawer
         title={null}

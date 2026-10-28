@@ -17,11 +17,15 @@ export interface AssistantQuota {
 export interface AssistantReply extends AssistantQuota {
   answer: string;
   sources: AssistantSource[];
+  // offer: nothing in KMCC's data answered it - the chat offers "Ask a person".
+  handover?: { offer: boolean; reason?: string };
 }
 
 export interface AssistantStatus extends Partial<AssistantQuota> {
   available: boolean;
   askingAs?: { role: 'admin' | 'member'; memberCode: string; name: string };
+  // Who answers "Ask a person", and their unread replies (null: not known now).
+  handover?: { person: string; newReplies: number | null } | null;
 }
 
 // An assistant error that still says how many questions are left.
@@ -130,3 +134,28 @@ export const createTelegramLinkCode = () => telegramCall<{ url: string; expiresA
 export const unlinkTelegram = () => telegramCall<{ ok: true }>(() => api.delete('/telegram/link'), 'Failed to unlink Telegram');
 export const getTelegramBotStatus = () => telegramCall<TelegramBotStatus>(() => api.get('/telegram/admin'), 'Failed to load the Telegram bot status');
 export const connectTelegramBot = () => telegramCall<{ webhookUrl: string; botUsername: string }>(() => api.post('/telegram/admin/webhook'), 'Failed to connect the bot');
+
+// "Ask a person" (server: server/src/ai/handover.ts): a question the assistant
+// could not answer, sent to a person, and their replies.
+export interface HandoverMessage {
+  id: number;
+  at: string;
+  from: 'user' | 'owner';
+  text: string;
+}
+export interface HandoverTicket {
+  id: number;
+  question: string;
+  status: 'open' | 'answered' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+  newReplies: number;
+  messages: HandoverMessage[];
+}
+const handoverCall = <T,>(request: () => Promise<{ data: T }>) => telegramCall<T>(request, 'Could not reach a person just now - please try again');
+// question: left out, the chat's last question is sent. note: anything the user adds.
+export const askPerson = (chatId: string, opts: { question?: string; note?: string; reason?: string } = {}) =>
+  handoverCall<HandoverTicket>(() => api.post('/assistant/handover', { chatId, ...opts }));
+export const getHandovers = () => handoverCall<{ tickets: HandoverTicket[]; newReplies: number }>(() => api.get('/assistant/handovers'));
+export const writeToPerson = (id: number, text: string) => handoverCall<HandoverTicket>(() => api.post(`/assistant/handovers/${id}/messages`, { text }));
+export const markHandoverSeen = (id: number) => handoverCall<{ ok: boolean }>(() => api.post(`/assistant/handovers/${id}/seen`, {}));

@@ -9,6 +9,7 @@ import dashboardRoutes from './routes/dashboard';
 import aiRoutes from './ai/routes';
 import assistantRoutes from './ai/assistant';
 import telegramRoutes from './ai/telegram';
+import handoverRoutes from './ai/handoverRoutes';
 
 const app = express();
 
@@ -28,6 +29,8 @@ app.use('/api/dashboard', dashboardRoutes);
 // The AI assistant (server/src/ai/): the read-only API the AI service reads,
 // the app's chat, and the Telegram bot.
 app.use('/api/ai', aiRoutes);
+// "Ask a person" (ai/handover.ts) - before the assistant's router: its reply route takes the AI service's token, not a login.
+app.use('/api/assistant', handoverRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/telegram', telegramRoutes);
 

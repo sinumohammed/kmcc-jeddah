@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered in src/main.tsx (virtual:pwa-register): it checks for a new deploy while the
+      // app stays open and shows "A new version is ready - Reload" instead of reloading by itself.
+      injectRegister: false,
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'KMCC Savings & Loans',
